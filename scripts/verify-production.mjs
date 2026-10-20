@@ -78,3 +78,9 @@ if (stream.status === 200) {
 }
 
 console.log('\nPRODUCTION VERIFICATION ' + (comp.status === 200 && out ? 'PASSED ✓' : 'INCOMPLETE'));
+
+// clean up: the check key must not pile up in the console
+if (key?.id) {
+  const del = await fetch(`${BASE}/api/admin/keys/${key.id}`, { method: 'DELETE', headers: { cookie, 'x-csrf-token': csrf } });
+  console.log(`[6] cleanup          ${del.status === 200 ? 'production-check key deleted' : `key delete -> ${del.status}`}`);
+}
