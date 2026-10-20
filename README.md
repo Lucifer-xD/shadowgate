@@ -62,6 +62,8 @@ cp .env.example .env         # set SECRET_KEY + ADMIN_PASSWORD (BIND_HOST=0.0.0.
 docker compose up -d         # gateway on 127.0.0.1:4315 — put nginx/Caddy TLS in front
 ```
 
+Everything the gateway stores — API keys, encrypted sessions, settings, logs — lives in `/app/data` (the `shadowgate_data` volume). To keep it in a host folder instead, mount `./data:/app/data` and make it writable by the container user first: `mkdir -p data && sudo chown -R 10001:10001 data`. The gateway refuses to start when its data directory is not writable, rather than running with amnesia.
+
 ### Manual
 
 ```bash

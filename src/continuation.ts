@@ -34,7 +34,8 @@ export interface ContinuationHit {
 const TTL_MS = 25 * 60_000;
 const MAX_ENTRIES = 400;
 const MAX_NEW_MESSAGES = 8;
-const REMINDER = /\n\n\[Harness reminder:[\s\S]*?\]\s*$/;
+// gateway-added suffixes move from turn to turn and must not take part in the key
+const REMINDER = /\n\n\[(?:Harness reminder|Output format):[\s\S]*?\]\s*$/;
 
 const entries = new Map<string, ContinuationEntry>();
 

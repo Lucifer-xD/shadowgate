@@ -7,7 +7,11 @@ services:
     ports:
       - "127.0.0.1:4315:4315"
     volumes:
-      - ./data:/app/data
+      # A named volume is initialised with the image's ownership (user "shadowgate"),
+      # so the encrypted store is writable out of the box. To keep the data in a
+      # host folder instead, use "./data:/app/data" and make that folder writable
+      # by the container user first:  mkdir -p data && sudo chown -R 10001:10001 data
+      - shadowgate_data:/app/data
     read_only: false
     security_opt:
       - no-new-privileges:true
@@ -29,5 +33,6 @@ services:
       - shadowgate
 
 volumes:
+  shadowgate_data:
   caddy_data:
   caddy_config:

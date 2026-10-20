@@ -6,6 +6,7 @@ import { TokenPool } from './pool.js';
 import { estimateTokens, nowIso, sha256hex, uuid } from './util.js';
 import { runCompletion } from './engine.js';
 import { ChatStore, recordApiExchange } from './chats.js';
+import { findContinuation } from './continuation.js';
 import { NUDGE_EMPTY_MESSAGE, NUDGE_MESSAGE, ToolCallStream, callKey, extractToolCalls, injectToolPreamble, looksLikeShortAnnouncement, looksLikeUnfulfilledIntent, normalizeToolChoice, normalizeTools, toolPreamble, transformMessagesForTools, type ToolCall } from './tools.js';
 import * as cg from './chatgpt/client.js';
 
@@ -366,11 +367,20 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     const maxOut = typeof body.max_completion_tokens === 'number' ? body.max_completion_tokens : typeof body.max_tokens === 'number' ? body.max_tokens : 0;
     const maxOutChars = maxOut > 0 ? maxOut * 4 : 0; // ~4 chars per token
     const stripFence = (t: string) => t.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
+    const model = typeof body.model === 'string' && body.model ? body.model : 'auto';
+    const effortReq =
+      typeof body.reasoning_effort === 'string' ? body.reasoning_effort :
+      typeof body.reasoning?.effort === 'string' ? body.reasoning.effort :
+      typeof body.thinking_effort === 'string' ? body.thinking_effort : undefined;
     let totalChars = textSize(messages);
-    if (totalChars > MAX_CHARS) {
+    // a continuation sends only the new messages upstream, so only those must fit the per-request budget
+    const hit = (store.settings.continuation ?? 'all') !== 'off' ? findContinuation(messages, model, effortReq) : null;
+    const upstreamChars = hit ? textSize(hit.newMessages) : totalChars;
+    if (upstreamChars > MAX_CHARS) {
       // Harnesses that never compact would die here with a 413. Compact for them:
       // old tool outputs first, then old turns — never the system prompt or the latest exchange.
       const before = totalChars;
+      if (hit) notes.push('new messages over budget → full compaction');
       messages = compactHistory(messages, MAX_CHARS);
       totalChars = textSize(messages);
       if (totalChars > MAX_CHARS) {
@@ -383,11 +393,6 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       console.warn(`[gateway] compacted history ${before} -> ${totalChars} chars for key ${key.name}`);
     }
     const stream = !!body.stream;
-    const model = typeof body.model === 'string' && body.model ? body.model : 'auto';
-    const effortReq =
-      typeof body.reasoning_effort === 'string' ? body.reasoning_effort :
-      typeof body.reasoning?.effort === 'string' ? body.reasoning.effort :
-      typeof body.thinking_effort === 'string' ? body.thinking_effort : undefined;
     let servedModel = model; // replaced by the slug the backend reports
     const completionId = `chatcmpl-${uuid().replace(/-/g, '').slice(0, 24)}`;
     const created = Math.floor(Date.now() / 1000);

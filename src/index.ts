@@ -21,6 +21,22 @@ const rootDir = path.resolve(__dirname, '..');
 const cfg: Config = loadConfig(rootDir);
 fs.mkdirSync(cfg.dataDir, { recursive: true, mode: 0o700 });
 
+// Refuse to run with amnesia: everything (keys, sessions, settings) lives in data/,
+// and a read-only data dir would silently lose every change. Typical cause: a Docker
+// bind mount owned by the host user while the container runs as "shadowgate".
+try {
+  const probe = path.join(cfg.dataDir, '.write-test');
+  fs.writeFileSync(probe, String(process.pid));
+  fs.unlinkSync(probe);
+} catch (err) {
+  const code = (err as NodeJS.ErrnoException).code ?? 'error';
+  console.error(`[shadowgate] FATAL: the data directory is not writable (${code}): ${cfg.dataDir}`);
+  console.error('[shadowgate] The store (API keys, sessions, settings) would be lost on every change, so the gateway will not start.');
+  console.error('[shadowgate] Fix: make the directory writable by the user running the gateway. In Docker, use the named volume from docker-compose.yml,');
+  console.error('[shadowgate] or for a bind mount run:  sudo chown -R 10001:10001 ./data   (10001 is the "shadowgate" user inside the image).');
+  process.exit(1);
+}
+
 // ── settings bootstrap ───────────────────────────────────────────────────
 
 let generatedPassword: string | null = null;

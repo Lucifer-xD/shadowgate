@@ -47,6 +47,12 @@ test('the harness reminder moving between turns does not change the key', () => 
   assert.ok(findContinuation(next, 'm', undefined));
 });
 
+test('the gateway output-format note is ignored by the key too', () => {
+  const note = '\n\n[Output format: respond with a single valid JSON object and nothing else.]';
+  rememberContinuation([{ role: 'user', content: 'q1' + note }], 'm', undefined, entry());
+  assert.ok(findContinuation([{ role: 'user', content: 'q1' }, { role: 'assistant', content: '{}' }, { role: 'user', content: 'q2' + note }], 'm', undefined));
+});
+
 test('image parts take part in the key by content', () => {
   const img = (data) => [{ type: 'text', text: 'look' }, { type: 'image_url', image_url: { url: `data:image/png;base64,${data}` } }];
   rememberContinuation([{ role: 'user', content: img('AAAA') }], 'm', undefined, entry());
