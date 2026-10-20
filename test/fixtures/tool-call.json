@@ -1,0 +1,12 @@
+{
+  "model": "gpt-6-astra-wm",
+  "inputIds": [
+    "173376e9-0c82-44d1-8c9d-6f6f750f00cc"
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "text": "# Harness protocol\nTo run a command on the user PC, reply with ONLY this block:\n<tool_call>{\"name\":\"run_command\",\"arguments\":{\"command\":\"<powershell>\"}}</tool_call>\nThe harness executes it and replies with <tool_response>.\n\nTask: print the current directory with one command."
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "model": "gpt-5-6",
+  "inputIds": [
+    "a988f6e5-6fca-4292-9a47-bd09e69e1a49"
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "text": "Reply with exactly: The quick brown fox jumps over the lazy dog."
+    }
+  ]
+}

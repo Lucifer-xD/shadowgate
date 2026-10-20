@@ -4,6 +4,7 @@
 import type { Store } from './store.js';
 import type { TokenPool } from './pool.js';
 import * as cg from './chatgpt/client.js';
+import { findContinuation, forgetConversation, rememberContinuation, type ContinuationHit } from './continuation.js';
 
 const MAX_ATTEMPTS = 3;
 
@@ -25,6 +26,10 @@ export interface CompletionOptions {
   onDelta?: (text: string) => void | 'stop' | 'length';
   /** incremental thought summaries (reasoning models) */
   onReasoning?: (text: string) => void;
+  /** a short note about something the engine did (failover, retry) — for the request log */
+  onNote?: (note: string) => void;
+  /** fired before onStart when the request continues an existing backend conversation (n = messages sent) */
+  onContinue?: (newMessages: number) => void;
 }
 
 export interface CompletionResult {
@@ -41,6 +46,8 @@ export interface CompletionResult {
   interrupted?: string;
   /** accumulated thought summaries */
   reasoning?: string;
+  /** number of new messages sent into an existing backend conversation (0 = full resend) */
+  continued?: number;
   latencyMs: number;
   aborted: boolean;
 }
@@ -83,10 +90,18 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
   let servedModel = model;
   let servedEffort: string | undefined;
   const tried = new Set<string>();
+  let wantSlug: string | undefined; // resolved upstream slug, once known — lets pick() skip capped sessions
+  const policy = opts.store.settings.continuation ?? 'all';
+  let cont: ContinuationHit | null = policy === 'off' ? null : findContinuation(messages, model, effort);
+  let contFailures = 0; // a broken continuation is retried as a full resend and must not eat a session attempt
 
-  while (attempts < MAX_ATTEMPTS && !aborted()) {
+  const maxAttempts = () => MAX_ATTEMPTS + contFailures + [...tried].filter((id) => pool.isCapped(id, wantSlug)).length;
+  while (attempts < maxAttempts() && !aborted()) {
     attempts++;
-    const tokenUsed = pool.pick(tried);
+    // a continuation is bound to the account that holds the conversation
+    let tokenUsed = cont && !tried.has(cont.entry.tokenId) ? pool.pickById(cont.entry.tokenId, cont.entry.model) : null;
+    if (!tokenUsed) { cont = null; tokenUsed = pool.pick(tried, wantSlug); }
+    let continuing = false;
     try {
       if (!tokenUsed) {
         // nothing left to try — surface the real upstream error if we have one
@@ -101,8 +116,19 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
       const resolved = cg.resolveModel(model, effort, pool.catalog(tokenUsed));
       servedModel = resolved.slug;
       servedEffort = resolved.effort;
+      wantSlug = resolved.slug;
+      if (attempts > 1) opts.onNote?.(`retry ${attempts} on ${tokenUsed.label}`);
       opts.onModel?.(resolved.slug, resolved.effort);
-      const opened = await cg.openConversation(creds, messages, resolved, requirements, signal);
+      // work-mode conversations only continue when saved to the account; temporary ones do for plain models
+      const persistNew = !!resolved.workMode && policy === 'all';
+      if (cont && (cont.entry.model !== resolved.slug || (resolved.workMode && !cont.entry.persisted))) cont = null;
+      continuing = !!cont;
+      const target: cg.ConversationTarget = cont
+        ? { conversationId: cont.entry.conversationId, parentMessageId: cont.entry.parentId, persisted: cont.entry.persisted }
+        : { persisted: persistNew };
+      const upstreamMessages = cont ? cont.newMessages : messages;
+      const opened = await cg.openConversation(creds, upstreamMessages, resolved, requirements, signal, target);
+      if (continuing) opts.onContinue?.(upstreamMessages.length);
       opts.onStart?.();
 
       let out = '';
@@ -112,6 +138,8 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
       let upstreamErr: unknown = null;
       let softStop = false;
       let kinds: string[] = [];
+      let convId = '';
+      let assistantId = '';
       try {
         for await (const ev of cg.parseChatGPTSSE(opened.res.body!, opened.inputIds)) {
           if (ev.upstreamError) {
@@ -138,6 +166,8 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
           }
           if (ev.finish) finish = ev.finish;
           if (ev.kinds) kinds = ev.kinds;
+          if (ev.conversationId) convId = ev.conversationId;
+          if (ev.assistantId) assistantId = ev.assistantId;
         }
       } catch (streamErr) {
         streamError = streamErr instanceof Error ? streamErr.message : String(streamErr);
@@ -149,12 +179,36 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
       if (streamError && !out) {
         // nothing delivered — treat as a failed attempt
         if (upstreamErr && isModelCap(upstreamErr)) {
-          // the account hit this model's quota: not a session fault, not retryable
+          // the account hit this model's quota: remember it for an hour and try another session for the same model
+          pool.markModelCap(tokenUsed, servedModel);
+          tried.add(tokenUsed.id);
+          const left = pool.availableFor(servedModel, tried);
+          console.warn(`[engine] model cap on ${tokenUsed.label} for ${servedModel}; ${left} other session(s) can still serve it`);
+          if (left > 0) { opts.onNote?.(`model cap on ${tokenUsed.label} → failover`); lastError = new cg.UpstreamError(429, 'model_cap_reached', streamError); continue; }
           throw new cg.UpstreamError(429, 'model_cap_reached', streamError);
         }
         throw new cg.UpstreamError(502, 'upstream stream error', streamError);
       }
       pool.markSuccess(tokenUsed);
+      if (continuing && !out.trim()) {
+        // the backend lost the thread (expired or hidden conversation): resend everything once
+        forgetConversation(cont!.entry.conversationId);
+        cont = null;
+        contFailures++;
+        opts.onNote?.('continuation lost → full resend');
+        console.warn('[engine] continuation produced nothing — falling back to a full resend');
+        continue;
+      }
+      if (policy !== 'off' && convId && assistantId && out.trim() && !streamError) {
+        rememberContinuation(messages, model, effort, {
+          conversationId: convId,
+          parentId: assistantId,
+          tokenId: tokenUsed.id,
+          model: resolved.slug,
+          persisted: !!target.persisted,
+        });
+      }
+      if (continuing) opts.onNote?.(`continued (+${upstreamMessages.length})`);
       if (!out.trim() && !streamError) {
         // the model answered only with non-text content (widget, image, card)
         const what = kinds.filter((k) => k !== 'thoughts' && k !== 'reasoning_recap');
@@ -172,11 +226,21 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
         status: 200,
         interrupted: streamError ?? undefined,
         reasoning: reasoning || undefined,
+        continued: continuing ? upstreamMessages.length : 0,
         latencyMs: Date.now() - started,
         aborted: false,
       };
     } catch (err) {
       if (aborted()) break;
+      if (continuing && cont) {
+        // the conversation is gone or refused — never the session's fault; resend everything
+        forgetConversation(cont.entry.conversationId);
+        cont = null;
+        contFailures++;
+        opts.onNote?.('continuation failed → full resend');
+        console.warn(`[engine] continuation failed (${err instanceof Error ? err.message : err}) — falling back to a full resend`);
+        continue;
+      }
       lastError = err;
       if (err instanceof cg.UpstreamError && err.message === 'model_cap_reached') break;
       const code = err instanceof cg.UpstreamError ? err.code : 0;

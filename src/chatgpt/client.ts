@@ -403,10 +403,20 @@ function splitLong(text: string): string[] {
   return out;
 }
 
-export function buildConversationBody(messages: OpenAIMessage[], model: string, thinkingEffort?: string, workMode = false, assets?: Map<number, ImageAsset[]>) {
+export interface ConversationTarget {
+  /** continue this backend conversation instead of starting a new one */
+  conversationId?: string;
+  /** the backend's last assistant message id (parent for the new turn) */
+  parentMessageId?: string;
+  /** keep the conversation in the account's history (needed to continue work-mode conversations) */
+  persisted?: boolean;
+}
+
+export function buildConversationBody(messages: OpenAIMessage[], model: string, thinkingEffort?: string, workMode = false, assets?: Map<number, ImageAsset[]>, target: ConversationTarget = {}) {
   return {
     action: 'next',
     conversation_mode: { kind: 'primary_assistant' },
+    ...(target.conversationId ? { conversation_id: target.conversationId } : {}),
     messages: messages.flatMap((m, i) => {
       const imgs = assets?.get(i) ?? [];
       const parts = splitLong(textOf(m.content));
@@ -422,9 +432,9 @@ export function buildConversationBody(messages: OpenAIMessage[], model: string, 
         };
       });
     }),
-    parent_message_id: randomUUID(),
+    parent_message_id: target.parentMessageId ?? randomUUID(),
     model,
-    history_and_training_disabled: true,
+    history_and_training_disabled: !target.persisted,
     websocket_request_id: randomUUID(),
     force_use_sse: true,
     ...(thinkingEffort ? { thinking_effort: thinkingEffort } : {}),
@@ -444,6 +454,31 @@ export interface OpenedConversation {
   res: Response;
   /** ids of the messages we sent — the backend echoes them back and they must not be treated as output */
   inputIds: Set<string>;
+}
+
+/** Hide a saved conversation from the account's history (chatgpt.com's "delete"). */
+export async function hideConversation(creds: ConversationCreds, conversationId: string): Promise<boolean> {
+  try {
+    const r = await fetch(`${BASE}/backend-api/conversation/${conversationId}`, {
+      method: 'PATCH',
+      signal: AbortSignal.timeout(15_000),
+      headers: {
+        'user-agent': creds.ua,
+        accept: '*/*',
+        'content-type': 'application/json',
+        authorization: `Bearer ${creds.accessToken}`,
+        'oai-device-id': creds.deviceId,
+        'oai-language': 'en-US',
+        origin: BASE,
+        referer: `${BASE}/`,
+        ...(creds.accountId ? { 'chatgpt-account-id': creds.accountId } : {}),
+      },
+      body: JSON.stringify({ is_visible: false }),
+    });
+    return r.ok;
+  } catch {
+    return false;
+  }
 }
 
 /** Upload every image_url part to the account's file service; keyed by message index. */
@@ -468,6 +503,7 @@ export async function openConversation(
   model: ResolvedModel,
   req: Requirements,
   clientSignal?: AbortSignal,
+  target: ConversationTarget = {},
 ): Promise<OpenedConversation> {
   if (creds.ua) setPoWUserAgent(creds.ua);
   void warmBuildId(); // fire-and-forget fingerprint warmup
@@ -478,7 +514,7 @@ export async function openConversation(
   const timeout = AbortSignal.timeout(300_000);
   const signal = clientSignal ? AbortSignal.any([timeout, clientSignal]) : timeout;
   const assets = await uploadImages(creds, messages, signal);
-  const payload = buildConversationBody(messages, model.slug, model.effort, !!model.workMode, assets);
+  const payload = buildConversationBody(messages, model.slug, model.effort, !!model.workMode, assets, target);
   const inputIds = new Set(payload.messages.map((m) => m.id));
   const r = await fetch(`${BASE}/backend-api/conversation`, {
     method: 'POST',
@@ -522,6 +558,8 @@ export interface StreamEvent {
   conversationId?: string;
   /** content kinds the assistant produced this turn ("text", "code→python", "execution_output", …) — diagnostics for empty turns */
   kinds?: string[];
+  /** id of the backend's last assistant message this turn — the parent for a continuation */
+  assistantId?: string;
   /** slug the backend actually answered with (from message metadata) */
   modelSlug?: string;
   upstreamError?: unknown;
@@ -645,10 +683,12 @@ export async function* parseChatGPTSSE(
   };
 
   const kinds = new Set<string>();
+  let lastAssistantId = '';
   const handleMessage = function* (m: any): Generator<StreamEvent> {
     if (!m || !m.id) return;
     if (skipIds.has(m.id)) return; // echo of a message we sent (history / system prompt)
     meta.set(m.id, m);
+    if (m.author?.role === 'assistant' && (m.content?.content_type === 'text' || m.content?.content_type === 'multimodal_text')) lastAssistantId = m.id;
     if (m.author?.role === 'assistant' || m.author?.role === 'tool') {
       const k = m.author.role === 'tool' ? `tool:${m.author.name ?? '?'}` : `${m.content?.content_type ?? '?'}${m.recipient && m.recipient !== 'all' ? `→${m.recipient}` : ''}`;
       kinds.add(k);
@@ -766,7 +806,7 @@ export async function* parseChatGPTSSE(
         if (data.startsWith('[DONE]')) {
           buffer = '';
           for (const t of messages.values()) if (!t.final) { t.final = true; yield* emitText(t); }
-          yield { finish: finish ?? 'stop', conversationId: convId || undefined, kinds: [...kinds] };
+          yield { finish: finish ?? 'stop', conversationId: convId || undefined, kinds: [...kinds], assistantId: lastAssistantId || undefined };
           return;
         }
         yield* handleData(data);
@@ -774,7 +814,7 @@ export async function* parseChatGPTSSE(
     }
     // stream ended without [DONE]
     for (const t of messages.values()) if (!t.final) { t.final = true; yield* emitText(t); }
-    yield { finish: finish ?? 'stop', conversationId: convId || undefined, kinds: [...kinds] };
+    yield { finish: finish ?? 'stop', conversationId: convId || undefined, kinds: [...kinds], assistantId: lastAssistantId || undefined };
   } finally {
     reader.releaseLock();
     try { await body.cancel(); } catch { /* ignore */ }

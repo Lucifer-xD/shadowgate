@@ -463,7 +463,7 @@
         <div class="spacer"></div>
         <label class="toggle"><input type="checkbox" id="log-auto" ${f.auto ? 'checked' : ''}> auto-refresh</label>
       </div>
-      <div class="card tbl-wrap"><table class="tbl"><thead><tr><th>Time</th><th>Key</th><th>Model</th><th>Status</th><th>Latency</th><th>Chars in → out</th><th>Mode</th><th>Error</th></tr></thead><tbody id="log-rows"></tbody></table></div>`;
+      <div class="card tbl-wrap"><table class="tbl"><thead><tr><th>Time</th><th>Key</th><th>Model</th><th>Status</th><th>Latency</th><th>Chars in → out</th><th>Mode</th><th>Notes / error</th></tr></thead><tbody id="log-rows"></tbody></table></div>`;
 
     const paint = (rows, known = new Set()) => {
       const tbody = $('#log-rows', el);
@@ -476,7 +476,7 @@
           <td class="mono">${nf(r.latencyMs)} ms</td>
           <td class="mono dim">${nf(r.charsIn)} → ${nf(r.charsOut)}</td>
           <td class="dim">${r.stream ? 'sse' : 'json'}</td>
-          <td class="mono" style="color:var(--bad);font-size:.72rem"><span class="ellip" title="${esc(r.error || '')}">${esc(r.error || '')}</span></td>
+          <td class="mono" style="font-size:.72rem;color:${r.error ? 'var(--bad)' : 'var(--dim)'}"><span class="ellip" title="${esc(r.error || r.notes || '')}">${esc(r.error || r.notes || '')}</span></td>
         </tr>`).join('') : '<tr><td colspan="8"><div class="empty"><div class="glyph">…</div>No requests match this filter.</div></td></tr>';
     };
     paint(items);
@@ -542,6 +542,13 @@
           <h3>Console</h3>
           <label class="field"><span>brand name</span><input id="set-brand" value="${esc(s.brandName)}" maxlength="40"></label>
           <label class="toggle"><input type="checkbox" id="set-record" ${s.recordApi ? 'checked' : ''}> record /v1 API conversations in Chat (read-only transcripts, stored on this server)</label>
+          <label class="field"><span>conversation continuation</span>
+            <select id="set-cont">
+              <option value="all" ${s.continuation === 'all' ? 'selected' : ''}>all models — fastest; GPT-6 work-mode chats are saved in the ChatGPT account while active, hidden after 25 min idle</option>
+              <option value="temp" ${s.continuation === 'temp' ? 'selected' : ''}>plain models only — temporary chats, nothing saved in the account</option>
+              <option value="off" ${s.continuation === 'off' ? 'selected' : ''}>off — resend the whole history every turn</option>
+            </select></label>
+          <p class="dim" style="font-size:.78rem">A request that is the previous conversation plus new messages sends only the new messages upstream. Edited or compacted histories fall back to a full resend automatically.</p>
           <div style="display:flex;justify-content:flex-end"><button class="btn" id="set-save">Save</button></div>
           <h3 style="margin-top:.6rem">Admin sessions</h3>
           <p class="dim" style="font-size:.86rem">Sessions last 8 hours. Revoking signs out every console, including this one.</p>
@@ -562,7 +569,7 @@
       </div>`;
 
     $('#set-save', el).addEventListener('click', async () => {
-      try { await api('/api/admin/settings', { method: 'POST', body: JSON.stringify({ brandName: $('#set-brand', el).value, recordApi: $('#set-record', el).checked }) }); toast('Saved', 'ok'); } catch (ex) { toast(ex.message, 'bad'); }
+      try { await api('/api/admin/settings', { method: 'POST', body: JSON.stringify({ brandName: $('#set-brand', el).value, recordApi: $('#set-record', el).checked, continuation: $('#set-cont', el).value }) }); toast('Saved', 'ok'); } catch (ex) { toast(ex.message, 'bad'); }
     });
     $('#pw-save', el).addEventListener('click', async () => {
       const cur = $('#pw-cur', el).value, nw = $('#pw-new', el).value, nw2 = $('#pw-new2', el).value;
@@ -727,7 +734,7 @@
     };
     const renderMsg = (m, streaming = false) => `
       <div class="msg ${m.role} ${streaming ? 'streaming' : ''}" data-mid="${m.id}">
-        <div class="mark">${m.role === 'user' ? esc((state.username[0] || 'u').toUpperCase()) : '<img src="/assets/logo.svg?v=1.10.0" alt="">'}</div>
+        <div class="mark">${m.role === 'user' ? esc((state.username[0] || 'u').toUpperCase()) : '<img src="/assets/logo.svg?v=1.11.0" alt="">'}</div>
         <div class="body">
           ${m.role === 'assistant' && m.reasoning ? `<details class="think"><summary>Thought process</summary><div>${esc(m.reasoning)}</div></details>` : ''}
           <div class="bubble ${m.error && !m.content ? 'err' : ''} ${m.role === 'assistant' ? 'md' : ''}">${m.role === 'assistant' ? (m.content ? md(m.content) : esc(m.error || '')) : esc(m.content)}</div>

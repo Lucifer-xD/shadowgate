@@ -1,0 +1,12 @@
+{
+  "model": "gpt-6-astra-wm",
+  "inputIds": [
+    "0cdd313d-dd3d-4540-83e1-51b53723125b"
+  ],
+  "messages": [
+    {
+      "role": "user",
+      "text": "Compute 123456789 * 987654321 exactly. Think it through, then give only the number."
+    }
+  ]
+}

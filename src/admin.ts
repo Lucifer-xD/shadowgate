@@ -463,6 +463,7 @@ export function mountAdmin(app: Express, store: Store, cfg: Config, pool: TokenP
       totpEnabled: !!s.totpSecret,
       mustChangePw: s.mustChangePw,
       recordApi: !!s.recordApi,
+      continuation: s.continuation ?? 'all',
       defaultRpm: cfg.defaultKeyRpm,
       defaultRpd: cfg.defaultKeyRpd,
       publicBaseUrl: cfg.publicBaseUrl,
@@ -473,8 +474,12 @@ export function mountAdmin(app: Express, store: Store, cfg: Config, pool: TokenP
   });
 
   app.post('/api/admin/settings', auth, (req, res) => {
-    const { brandName, recordApi } = req.body ?? {};
+    const { brandName, recordApi, continuation } = req.body ?? {};
     if (typeof brandName === 'string' && brandName.trim()) store.settings.brandName = brandName.trim().slice(0, 40);
+    if (continuation === 'off' || continuation === 'temp' || continuation === 'all') {
+      if (store.settings.continuation !== continuation) audit(store, cfg, req, 'settings_continuation', continuation);
+      store.settings.continuation = continuation;
+    }
     if (typeof recordApi === 'boolean') {
       store.settings.recordApi = recordApi;
       audit(store, cfg, req, 'settings_record_api', recordApi ? 'on' : 'off');

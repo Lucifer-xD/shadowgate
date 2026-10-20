@@ -21,6 +21,8 @@ export interface TokenRecord {
   accountId?: string;
   status: TokenStatus;
   coolUntil?: number;
+  /** model slug → epoch ms until which this account's usage cap for that model applies */
+  modelCaps?: Record<string, number>;
   failCount: number;
   lastRefresh?: string;
   lastVerified?: string;
@@ -56,6 +58,8 @@ export interface RequestLog {
   charsIn: number;
   charsOut: number;
   error?: string;
+  /** what the gateway did on the way: compacted, nudged, tool calls, failover … */
+  notes?: string;
 }
 
 export interface Settings {
@@ -68,6 +72,13 @@ export interface Settings {
   brandName: string;
   /** record /v1 exchanges as read-only conversations in the console chat */
   recordApi?: boolean;
+  /**
+   * Conversation continuation: send only new messages into the backend conversation
+   * a request is continuing. "temp" = only models that continue inside temporary chats;
+   * "all" = also work-mode models, whose conversations must be saved to the account's
+   * history while active (hidden again when idle); "off" = always resend everything.
+   */
+  continuation?: 'off' | 'temp' | 'all';
 }
 
 export interface AuditEntry {

@@ -182,6 +182,7 @@ function finishRequest(
   charsIn: number,
   charsOut: number,
   error?: string,
+  notes?: string[],
 ): void {
   key.totalRequests++;
   key.totalChars += charsIn + charsOut;
@@ -196,6 +197,7 @@ function finishRequest(
     charsIn,
     charsOut,
     error: error?.slice(0, 200),
+    ...(notes && notes.length ? { notes: notes.join(' · ').slice(0, 200) } : {}),
   };
   store.logRequest(entry);
 }
@@ -330,6 +332,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     const key = (req as any).apiKey as ApiKeyRecord;
     const started = Date.now();
     const body = (req.body ?? {}) as ChatBody;
+    const notes: string[] = [];
 
     // validation
     const invalid = validateMessages(body.messages);
@@ -376,6 +379,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
         return;
       }
       res.setHeader('x-shadowgate-compacted', `${before}->${totalChars}`);
+      notes.push(`compacted ${Math.round(before / 1000)}k→${Math.round(totalChars / 1000)}k`);
       console.warn(`[gateway] compacted history ${before} -> ${totalChars} chars for key ${key.name}`);
     }
     const stream = !!body.stream;
@@ -470,6 +474,8 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       onReasoning: (text) => {
         if (stream) res.write(chunk({ reasoning_content: text }, null));
       },
+      onNote: (n) => notes.push(n),
+      onContinue: (n) => { if (!res.headersSent) res.setHeader('x-shadowgate-continued', String(n)); },
     });
 
     let result = await runOnce(messages);
@@ -503,6 +509,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     if (toolMode && result.ok && !calls.length && !clientAbort.signal.aborted && (intent || shortMidLoop)) {
       // "I need to check your PC." with no block → ask once for the block itself
       console.warn(`[gateway] tool mode: block-less reply (${intent ? 'announcement' : 'short mid-loop'}) — nudging once`);
+      notes.push(`nudged (${intent ? 'announcement' : 'short mid-loop'})`);
       announced = visibleText;
       const firstUnsent = unsent; // held-back lead text of the first run (nothing was written yet)
       const emptyTurn = announced.trim().startsWith('[shadowgate:');
@@ -515,6 +522,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       if (repeatsPriorCall()) {
         // the nudge only made it redo an action it already did — the short reply was the real answer
         console.warn('[gateway] tool mode: nudge produced a repeat of an earlier call — keeping the original reply');
+        notes.push('nudge repeated a call → kept reply');
         calls = [];
         result = firstResult;
         visibleText = announced;
@@ -542,6 +550,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     if (heartbeat) { clearInterval(heartbeat); heartbeat = null; }
     if (result.ok) {
       const finish = calls.length ? 'tool_calls' : result.finish;
+      if (calls.length) notes.push(`${calls.length} tool call${calls.length > 1 ? 's' : ''}`);
       if (jsonMode) {
         if (stream) res.write(chunk({ content: stripFence(jsonBuffer) }, null));
         else result = { ...result, text: stripFence(result.text) };
@@ -587,7 +596,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
           },
         });
       }
-      finishRequest(store, key, body, 200, started, totalChars, result.text.length, result.interrupted);
+      finishRequest(store, key, body, 200, started, totalChars, result.text.length, result.interrupted, notes);
       if (store.settings.recordApi) {
         try { recordApiExchange(chats, key.name, model, messages, result); } catch (err) { console.warn('[gateway] record failed:', (err as Error).message); }
       }
@@ -598,7 +607,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     const type =
       result.status === 429 ? 'rate_limit_error' :
       result.status === 503 ? 'service_unavailable' : 'upstream_error';
-    finishRequest(store, key, body, result.status, started, totalChars, 0, result.error);
+    finishRequest(store, key, body, result.status, started, totalChars, 0, result.error, notes);
     if (!res.headersSent) {
       openaiError(res, result.status, result.error ?? 'Unknown upstream error', type);
     } else {

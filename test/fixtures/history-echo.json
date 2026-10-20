@@ -1,0 +1,27 @@
+{
+  "model": "gpt-5-6",
+  "inputIds": [
+    "dd2a5e17-03a1-457d-ae54-a97d24936946",
+    "605b16cc-479e-4e4c-95f7-68849df646ec",
+    "d3fa6ecd-ca79-4065-96e5-5eb1cf76da2c",
+    "0e244850-0748-4f3f-af3e-c5fa0bf06c3b"
+  ],
+  "messages": [
+    {
+      "role": "critic",
+      "text": "You are terse."
+    },
+    {
+      "role": "user",
+      "text": "My name is Pelican."
+    },
+    {
+      "role": "assistant",
+      "text": "Hello Pelican."
+    },
+    {
+      "role": "user",
+      "text": "What is my name? One word."
+    }
+  ]
+}

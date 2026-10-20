@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { loadConfig, Config } from './config.js';
+import * as cg from './chatgpt/client.js';
+import { allPersisted, sweepExpired, type ContinuationEntry } from './continuation.js';
 import { Store, Settings } from './store.js';
 import { TokenPool } from './pool.js';
 import { mountGateway } from './gateway.js';
@@ -186,6 +188,25 @@ server.on('error', (err: NodeJS.ErrnoException) => {
 server.keepAliveTimeout = 75_000;
 server.headersTimeout = 80_000;
 
+// ── continuation housekeeping: hide saved work-mode conversations once idle ──
+async function hideConversations(entries: ContinuationEntry[]): Promise<void> {
+  let hidden = 0;
+  for (const e of entries) {
+    const t = store.tokens.find((x) => x.id === e.tokenId);
+    if (!t) continue;
+    try {
+      const creds = await pool.ensureAccess(t);
+      const ok = await cg.hideConversation(creds, e.conversationId);
+      if (ok) hidden++;
+      else console.warn(`[continuation] could not hide conversation ${e.conversationId} on ${t.label}`);
+    } catch (err) {
+      console.warn(`[continuation] hide failed on ${t.label}:`, (err as Error).message);
+    }
+  }
+  if (hidden) console.log(`[continuation] hid ${hidden} idle work-mode conversation(s) from the account history`);
+}
+setInterval(() => { void hideConversations(sweepExpired()); }, 60_000).unref();
+
 // ── graceful shutdown (systemd sends SIGTERM; Ctrl+C sends SIGINT) ──────
 let shuttingDown = false;
 function shutdown(signal: string): void {
@@ -195,9 +216,11 @@ function shutdown(signal: string): void {
   pool.stop();
   store.flushNow();
   chats.flushNow();
-  server.close(() => process.exit(0));
-  // don't wait forever on open SSE streams
-  setTimeout(() => process.exit(0), 4000).unref();
+  const pending = allPersisted();
+  const done = pending.length ? hideConversations(pending).catch(() => undefined) : Promise.resolve();
+  server.close(() => { void done.finally(() => process.exit(0)); });
+  // don't wait forever on open SSE streams or upstream calls
+  setTimeout(() => process.exit(0), 6000).unref();
 }
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));

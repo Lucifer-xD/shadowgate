@@ -104,13 +104,14 @@ export class TokenPool {
   }
 
   /** Least-recently-used healthy token, optionally excluding ids already tried. */
-  pick(exclude: Set<string> = new Set()): TokenRecord | null {
+  pick(exclude: Set<string> = new Set(), modelSlug?: string): TokenRecord | null {
     const now = Date.now();
     const usable = this.store.tokens.filter(
       (t) =>
         !exclude.has(t.id) &&
         (t.status === 'healthy' || t.status === 'unverified') &&
-        (!t.coolUntil || t.coolUntil < now),
+        (!t.coolUntil || t.coolUntil < now) &&
+        !(modelSlug && t.modelCaps?.[modelSlug] && t.modelCaps[modelSlug] > now),
     );
     if (usable.length === 0) return null;
     usable.sort((a, b) => (a.lastUsed ?? '').localeCompare(b.lastUsed ?? ''));
@@ -181,6 +182,41 @@ export class TokenPool {
       }
     }
     this.store.flush();
+  }
+
+  /** A specific session, if it can serve right now (continuations are bound to the account that holds the conversation). */
+  pickById(id: string, modelSlug?: string): TokenRecord | null {
+    const now = Date.now();
+    const t = this.store.tokens.find((x) => x.id === id);
+    if (!t) return null;
+    if (!(t.status === 'healthy' || t.status === 'unverified')) return null;
+    if (t.coolUntil && t.coolUntil > now) return null;
+    if (modelSlug && t.modelCaps?.[modelSlug] && t.modelCaps[modelSlug] > now) return null;
+    t.lastUsed = nowIso();
+    this.store.flush();
+    return t;
+  }
+
+  /** The account hit its usage cap for one model: keep the session, skip that model on it for a while. */
+  markModelCap(t: TokenRecord, modelSlug: string, ms = 60 * 60_000): void {
+    t.modelCaps = { ...(t.modelCaps ?? {}), [modelSlug]: Date.now() + ms };
+    // forget expired entries so the record does not grow forever
+    for (const [k, v] of Object.entries(t.modelCaps)) if (v < Date.now()) delete t.modelCaps[k];
+    t.lastError = `model cap: ${modelSlug}`;
+    this.store.flush();
+  }
+
+  /** Whether a given session is currently capped for a model. */
+  isCapped(tokenId: string, modelSlug?: string): boolean {
+    if (!modelSlug) return false;
+    const t = this.store.tokens.find((x) => x.id === tokenId);
+    return !!(t?.modelCaps?.[modelSlug] && t.modelCaps[modelSlug] > Date.now());
+  }
+
+  /** Sessions that could still serve this model right now (healthy, not cooling, not capped for it). */
+  availableFor(modelSlug: string, exclude: Set<string> = new Set()): number {
+    const now = Date.now();
+    return this.store.tokens.filter((t) => !exclude.has(t.id) && (t.status === 'healthy' || t.status === 'unverified') && (!t.coolUntil || t.coolUntil < now) && !(t.modelCaps?.[modelSlug] && t.modelCaps[modelSlug] > now)).length;
   }
 
   /** Full verify: session refresh + sentinel handshake. */
