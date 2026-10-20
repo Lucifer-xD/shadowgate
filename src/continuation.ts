@@ -8,6 +8,7 @@
 // continuation. Anything else — edited history, compaction, a different model
 // or effort — misses and falls back to a full resend, which is always correct.
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import type { OpenAIMessage } from './chatgpt/client.js';
 
 export interface ContinuationEntry {
@@ -38,6 +39,45 @@ const MAX_NEW_MESSAGES = 8;
 const REMINDER = /\n\n\[(?:Harness reminder|Output format):[\s\S]*?\]\s*$/;
 
 const entries = new Map<string, ContinuationEntry>();
+
+// ── persistence: the cache survives a restart, so a deploy does not force a full resend per conversation ──
+let file: string | null = null;
+let saveTimer: NodeJS.Timeout | null = null;
+
+export function initContinuationStore(path: string): void {
+  file = path;
+  try {
+    const parsed = JSON.parse(fs.readFileSync(path, 'utf8')) as { entries?: Array<[string, ContinuationEntry]> };
+    const now = Date.now();
+    let loaded = 0;
+    for (const [k, e] of parsed.entries ?? []) {
+      if (!e || typeof e.conversationId !== 'string' || now - e.lastUsed > TTL_MS) continue;
+      entries.set(k, e);
+      loaded++;
+    }
+    if (loaded) console.log(`[continuation] restored ${loaded} live conversation link(s)`);
+  } catch {
+    /* no file yet, or unreadable — start empty */
+  }
+}
+
+function scheduleSave(): void {
+  if (!file || saveTimer) return;
+  saveTimer = setTimeout(() => { saveTimer = null; saveNow(); }, 500);
+  saveTimer.unref?.();
+}
+
+export function saveNow(): void {
+  if (!file) return;
+  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+  try {
+    const tmp = `${file}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify({ entries: [...entries.entries()] }), { mode: 0o600 });
+    fs.renameSync(tmp, file);
+  } catch (err) {
+    console.warn('[continuation] could not save the cache:', (err as Error).message);
+  }
+}
 
 function canon(m: OpenAIMessage): string {
   const c = m.content;
@@ -89,11 +129,13 @@ export function rememberContinuation(messages: OpenAIMessage[], model: string, e
     const oldest = entries.keys().next().value as string;
     entries.delete(oldest);
   }
+  scheduleSave();
 }
 
 /** Drop every entry that points at a conversation (it broke, or the session went away). */
 export function forgetConversation(conversationId: string): void {
   for (const [k, e] of entries) if (e.conversationId === conversationId) entries.delete(k);
+  scheduleSave();
 }
 
 /** Remove expired entries and return the distinct persisted conversations that should now be hidden upstream. */
@@ -106,6 +148,7 @@ export function sweepExpired(now = Date.now()): ContinuationEntry[] {
   }
   // a conversation still referenced by a live entry must not be hidden
   for (const e of entries.values()) out.delete(e.conversationId);
+  if (out.size) scheduleSave();
   return [...out.values()];
 }
 
@@ -126,4 +169,5 @@ export function continuationStats(): { entries: number; persisted: number } {
 /** Test hook. */
 export function _resetContinuation(): void {
   entries.clear();
+  file = null;
 }

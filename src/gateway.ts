@@ -7,6 +7,7 @@ import { estimateTokens, nowIso, sha256hex, uuid } from './util.js';
 import { runCompletion } from './engine.js';
 import { ChatStore, recordApiExchange } from './chats.js';
 import { findContinuation } from './continuation.js';
+import { summarizeHistory } from './summarize.js';
 import { NUDGE_EMPTY_MESSAGE, NUDGE_MESSAGE, ToolCallStream, callKey, extractToolCalls, injectToolPreamble, looksLikeShortAnnouncement, looksLikeUnfulfilledIntent, normalizeToolChoice, normalizeTools, toolPreamble, transformMessagesForTools, type ToolCall } from './tools.js';
 import * as cg from './chatgpt/client.js';
 
@@ -381,7 +382,15 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       // old tool outputs first, then old turns — never the system prompt or the latest exchange.
       const before = totalChars;
       if (hit) notes.push('new messages over budget → full compaction');
-      messages = compactHistory(messages, MAX_CHARS);
+      // first choice: condense the middle of the conversation with a fast model, keeping every detail that matters
+      const summarised = await summarizeHistory(pool, store, messages, MAX_CHARS).catch(() => null);
+      if (summarised) {
+        messages = summarised.messages;
+        notes.push(`summarised ${summarised.summarised} msgs`);
+        console.log(`[gateway] summarised ${summarised.summarised} earlier messages for key ${key.name}`);
+      }
+      // then clip whatever is still over budget (also the fallback when the summariser is unavailable)
+      if (textSize(messages) > MAX_CHARS) messages = compactHistory(messages, MAX_CHARS);
       totalChars = textSize(messages);
       if (totalChars > MAX_CHARS) {
         finishRequest(store, key, body, 413, started, totalChars, 0, 'too large');
@@ -393,6 +402,8 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       console.warn(`[gateway] compacted history ${before} -> ${totalChars} chars for key ${key.name}`);
     }
     const stream = !!body.stream;
+    // what the backend already held when this request continued a conversation — reported as cached tokens
+    const cachedTokens = () => (result?.continued ? Math.max(0, estimateTokens(totalChars) - estimateTokens(upstreamChars)) : 0);
     let servedModel = model; // replaced by the slug the backend reports
     const completionId = `chatcmpl-${uuid().replace(/-/g, '').slice(0, 24)}`;
     const created = Math.floor(Date.now() / 1000);
@@ -571,6 +582,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
         if (body.stream_options?.include_usage) {
           res.write(`data: ${JSON.stringify({ id: completionId, object: 'chat.completion.chunk', created, model: servedModel, choices: [], usage: {
             prompt_tokens: estimateTokens(totalChars), completion_tokens: estimateTokens(result.text.length), total_tokens: estimateTokens(totalChars) + estimateTokens(result.text.length),
+            prompt_tokens_details: { cached_tokens: cachedTokens() }, cached_tokens: cachedTokens(),
           } })}\n\n`);
         }
         res.write('data: [DONE]\n\n');
@@ -598,6 +610,8 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
             prompt_tokens: estimateTokens(totalChars),
             completion_tokens: estimateTokens(result.text.length),
             total_tokens: estimateTokens(totalChars) + estimateTokens(result.text.length),
+            prompt_tokens_details: { cached_tokens: cachedTokens() },
+            cached_tokens: cachedTokens(),
           },
         });
       }

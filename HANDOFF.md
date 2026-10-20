@@ -10,7 +10,7 @@ paths and credentials in a private notes file outside the repository.
 |---|---|
 | App (dist + web + production node_modules) | `/opt/shadowgate` |
 | Environment (secrets) | `/opt/shadowgate/.env`, owned `root:shadowgate`, mode `0600` |
-| Data (encrypted store, chats) | `/opt/shadowgate/data/` |
+| Data (encrypted store, chats, continuation links) | `/opt/shadowgate/data/` (`store.json`, `chats.json`, `continuation.json`) |
 | Node runtime | `/opt/node` (tarball install, see `deploy/deploy.sh`) |
 | Service | `systemctl status shadowgate` — logs with `journalctl -u shadowgate` |
 | Reverse proxy | nginx vhost from `deploy/nginx-shadowgate.conf` (SSE-safe: `proxy_buffering off`); TLS via certbot (`deploy/issue-cert.sh`) |

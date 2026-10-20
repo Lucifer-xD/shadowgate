@@ -7,7 +7,7 @@ import express from 'express';
 import bcrypt from 'bcryptjs';
 import { loadConfig, Config } from './config.js';
 import * as cg from './chatgpt/client.js';
-import { allPersisted, sweepExpired, type ContinuationEntry } from './continuation.js';
+import { initContinuationStore, saveNow as saveContinuation, sweepExpired, type ContinuationEntry } from './continuation.js';
 import { Store, Settings } from './store.js';
 import { TokenPool } from './pool.js';
 import { mountGateway } from './gateway.js';
@@ -58,6 +58,7 @@ const freshSettings = (): Settings => {
 };
 
 const store = new Store(cfg.dataDir, freshSettings);
+initContinuationStore(path.join(cfg.dataDir, 'continuation.json'));
 const chats = new ChatStore(cfg.dataDir);
 if (generatedPassword) store.flush();
 
@@ -232,11 +233,10 @@ function shutdown(signal: string): void {
   pool.stop();
   store.flushNow();
   chats.flushNow();
-  const pending = allPersisted();
-  const done = pending.length ? hideConversations(pending).catch(() => undefined) : Promise.resolve();
-  server.close(() => { void done.finally(() => process.exit(0)); });
-  // don't wait forever on open SSE streams or upstream calls
-  setTimeout(() => process.exit(0), 6000).unref();
+  saveContinuation(); // live conversation links survive the restart; the sweeper hides idle ones later
+  server.close(() => process.exit(0));
+  // don't wait forever on open SSE streams
+  setTimeout(() => process.exit(0), 4000).unref();
 }
 process.on('SIGINT', () => shutdown('SIGINT'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
