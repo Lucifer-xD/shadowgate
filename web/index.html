@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShadowGate — a private gate between your tools and ChatGPT</title>
+  <meta name="description" content="ShadowGate turns ChatGPT sessions into a self-hosted, OpenAI-compatible API: token streaming, managed keys, session pooling and a hardened console.">
+  <meta name="theme-color" content="#09080a">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.10.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/assets/base.css?v=1.10.0">
+  <link rel="stylesheet" href="/assets/landing.css?v=1.10.0">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="bg-rays" aria-hidden="true"></div>
+
+  <!-- ─────────────────────────── nav ─────────────────────────── -->
+  <header class="nav" id="nav">
+    <a class="brand" href="/">
+      <img src="/assets/logo.svg?v=1.10.0" alt="" width="28" height="28">
+      <span class="brand-word">Shadow<em>Gate</em></span>
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#security">Security</a>
+      <a href="#code">Code</a>
+      <a href="/docs">Docs</a>
+    </nav>
+    <div class="nav-right">
+      <a class="status mono" href="/healthz" id="status" title="Gateway health">
+        <span class="led off" id="status-led"></span><span id="status-text">probing…</span>
+      </a>
+      <a class="btn btn-sm btn-primary" href="/admin">Console <span class="arrow">→</span></a>
+    </div>
+  </header>
+
+  <!-- ─────────────────────────── hero ─────────────────────────── -->
+  <section class="hero" id="top">
+    <div class="hero-copy">
+      <div class="hero-meta mono reveal">
+        <span><span class="led"></span> self-hosted</span>
+        <span>openai-compatible</span>
+        <span>sse streaming</span>
+        <span>aes-256-gcm</span>
+      </div>
+      <h1 class="display hero-title" id="hero-title">
+        <span class="line"><span class="w">A</span> <span class="w">private</span> <span class="w">gate</span></span>
+        <span class="line"><span class="w">between</span> <span class="w">your</span> <span class="w">tools</span></span>
+        <span class="line"><span class="w">and</span> <span class="w"><em>ChatGPT.</em></span></span>
+      </h1>
+      <p class="hero-sub reveal d-4">
+        ShadowGate turns the ChatGPT sessions you already own into an <b>OpenAI-compatible API</b>.
+        Point any SDK at it. Stream token by token. Keep every secret on a server you control.
+      </p>
+      <div class="hero-cta reveal d-5">
+        <a class="btn btn-lg btn-primary" href="/admin">Open the console <span class="arrow">→</span></a>
+        <a class="btn btn-lg btn-ghost" href="/docs">Read the API docs</a>
+      </div>
+      <div class="hero-foot mono reveal d-6">
+        <span>node ≥ 20</span><span class="sep">/</span><span>2 runtime deps</span><span class="sep">/</span><span>zero telemetry</span>
+      </div>
+    </div>
+
+    <div class="hero-visual reveal d-2" aria-hidden="true">
+      <svg class="gate" viewBox="0 0 520 520" fill="none">
+        <defs>
+          <linearGradient id="g-beam" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#fff5e6"/><stop offset=".5" stop-color="#ffb46b"/><stop offset="1" stop-color="#ff7a2f"/>
+          </linearGradient>
+          <radialGradient id="g-glow" cx=".5" cy=".5" r=".5">
+            <stop offset="0" stop-color="#ff9a45" stop-opacity=".7"/><stop offset="1" stop-color="#ff9a45" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="g-pillar" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#2a2628"/><stop offset="1" stop-color="#131113"/>
+          </linearGradient>
+          <filter id="blur8"><feGaussianBlur stdDeviation="8"/></filter>
+        </defs>
+        <g class="rings">
+          <circle cx="260" cy="260" r="110"/><circle cx="260" cy="260" r="170"/><circle cx="260" cy="260" r="230"/>
+        </g>
+        <circle class="glow" cx="260" cy="260" r="160" fill="url(#g-glow)"/>
+        <g class="packets-in">
+          <circle class="pk" cx="0" cy="222" r="3"/><circle class="pk" cx="0" cy="260" r="3"/><circle class="pk" cx="0" cy="298" r="3"/>
+          <circle class="pk" cx="0" cy="241" r="2.2"/><circle class="pk" cx="0" cy="279" r="2.2"/>
+        </g>
+        <g class="packets-out">
+          <rect class="tk" x="0" y="216" width="22" height="9" rx="2"/><rect class="tk" x="0" y="256" width="30" height="9" rx="2"/>
+          <rect class="tk" x="0" y="294" width="16" height="9" rx="2"/><rect class="tk" x="0" y="236" width="26" height="9" rx="2"/>
+          <rect class="tk" x="0" y="275" width="20" height="9" rx="2"/>
+        </g>
+        <rect x="150" y="90" width="92" height="340" rx="8" fill="url(#g-pillar)" stroke="#3a3437" stroke-width="1.5"/>
+        <rect x="278" y="90" width="92" height="340" rx="8" fill="url(#g-pillar)" stroke="#3a3437" stroke-width="1.5"/>
+        <g class="pillar-lines" stroke="#2c282a">
+          <path d="M166 120h60M166 150h60M166 180h60M166 210h60M166 240h60M166 270h60M166 300h60M166 330h60M166 360h60M166 390h60"/>
+          <path d="M294 120h60M294 150h60M294 180h60M294 210h60M294 240h60M294 270h60M294 300h60M294 330h60M294 360h60M294 390h60"/>
+        </g>
+        <path class="beam-blur" d="M254 100h12l-3 320h-6z" fill="url(#g-beam)" filter="url(#blur8)"/>
+        <path class="beam" d="M256 100h8l-2 320h-4z" fill="url(#g-beam)"/>
+        <path class="beam-core" d="M258.5 100h3l-1 320h-1z" fill="#fff"/>
+      </svg>
+      <div class="hero-readout mono">
+        <div><span class="k">ttfb</span><span class="v" id="ro-ttfb">—</span></div>
+        <div><span class="k">stream</span><span class="v" id="ro-stream">—</span></div>
+        <div><span class="k">pool</span><span class="v" id="ro-pool">—</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── demo ─────────────────────────── -->
+  <section class="demo reveal">
+    <div class="term" id="term">
+      <div class="term-bar">
+        <span class="term-dots"><i></i><i></i><i></i></span>
+        <span class="term-title mono">request → gateway → chatgpt.com → stream</span>
+        <span class="term-live mono"><span class="led"></span>live demo</span>
+      </div>
+      <div class="term-grid">
+        <div class="term-pane">
+          <div class="term-label mono">terminal</div>
+          <pre class="term-code mono"><span class="pr">$</span> <span id="term-cmd"></span><span class="caret" id="term-caret"></span></pre>
+        </div>
+        <div class="term-pane">
+          <div class="term-label mono">response <span class="term-model" id="term-model">text/event-stream</span></div>
+          <pre class="term-code mono" id="term-out"></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── marquee ─────────────────────────── -->
+  <div class="marquee" aria-hidden="true">
+    <div class="marquee-track mono">
+      <span>chat/completions</span><i></i><span>token streaming</span><i></i><span>session pooling</span><i></i><span>per-key rate limits</span><i></i><span>aes-256-gcm at rest</span><i></i><span>totp 2fa</span><i></i><span>csrf double-submit</span><i></i><span>bcrypt lockout</span><i></i><span>audit trail</span><i></i><span>zero telemetry</span><i></i>
+      <span>chat/completions</span><i></i><span>token streaming</span><i></i><span>session pooling</span><i></i><span>per-key rate limits</span><i></i><span>aes-256-gcm at rest</span><i></i><span>totp 2fa</span><i></i><span>csrf double-submit</span><i></i><span>bcrypt lockout</span><i></i><span>audit trail</span><i></i><span>zero telemetry</span><i></i>
+    </div>
+  </div>
+
+  <!-- ─────────────────────────── how ─────────────────────────── -->
+  <section class="section" id="how">
+    <div class="section-head reveal">
+      <span class="eyebrow">How it works</span>
+      <h2 class="display">Three moving parts. <em>No magic.</em></h2>
+    </div>
+    <div class="steps">
+      <svg class="steps-line" viewBox="0 0 1200 2" preserveAspectRatio="none" aria-hidden="true"><path id="steps-path" d="M0 1H1200"/></svg>
+      <article class="step reveal">
+        <div class="step-n display">01</div>
+        <h3>Connect a session</h3>
+        <p>Paste your <code>__Secure-next-auth.session-token</code> — or a full session export — into the console. ShadowGate verifies it, keeps its device identity, and stores it encrypted.</p>
+      </article>
+      <article class="step reveal d-2">
+        <div class="step-n display">02</div>
+        <h3>Mint a key</h3>
+        <p>Create <code>sg-…</code> API keys with their own requests-per-minute and per-day limits. Keys are stored as SHA-256 hashes; the full value is shown exactly once.</p>
+      </article>
+      <article class="step reveal d-4">
+        <div class="step-n display">03</div>
+        <h3>Call it like OpenAI</h3>
+        <p><code>POST /v1/chat/completions</code> with your key as a bearer token. JSON or SSE. Every OpenAI SDK, CLI and plugin you already use works unmodified.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── features ─────────────────────────── -->
+  <section class="section" id="features">
+    <div class="section-head reveal">
+      <span class="eyebrow">What's inside</span>
+      <h2 class="display">Built like infrastructure, <em>not a weekend script.</em></h2>
+    </div>
+    <div class="bento">
+      <article class="spot feat wide reveal">
+        <div class="feat-visual sdk mono">
+          <div><span class="c">from</span> openai <span class="c">import</span> OpenAI</div>
+          <div>client = OpenAI(</div>
+          <div>&nbsp;&nbsp;base_url=<span class="hl">"https://your-gate/v1"</span>,</div>
+          <div>&nbsp;&nbsp;api_key=<span class="s">"sg-••••••••"</span>)</div>
+        </div>
+        <h3>Drop-in OpenAI compatible</h3>
+        <p>Change one line — the base URL. <code>chat/completions</code>, <code>models</code>, streaming chunks, usage fields and error shapes all match the real thing.</p>
+      </article>
+      <article class="spot feat reveal d-1">
+        <div class="feat-visual stream mono" id="stream-demo"><span></span></div>
+        <h3>True token streaming</h3>
+        <p>ChatGPT's event stream is translated live into <code>chat.completion.chunk</code> frames. First byte in milliseconds, clean <code>[DONE]</code> framing.</p>
+      </article>
+      <article class="spot feat reveal d-2">
+        <div class="feat-visual pool">
+          <div class="pool-row" data-i="0"><span class="led"></span><span class="mono">session-a</span><span class="pick mono">picked</span></div>
+          <div class="pool-row" data-i="1"><span class="led"></span><span class="mono">session-b</span><span class="pick mono">picked</span></div>
+          <div class="pool-row" data-i="2"><span class="led warn"></span><span class="mono">session-c</span><span class="pick mono">cooling</span></div>
+        </div>
+        <h3>Session pool &amp; rotation</h3>
+        <p>Least-recently-used rotation across sessions, automatic access-token refresh, cooldown on throttling and a health check every ten minutes.</p>
+      </article>
+      <article class="spot feat reveal d-3">
+        <div class="feat-visual chart">
+          <svg viewBox="0 0 240 70" preserveAspectRatio="none" aria-hidden="true">
+            <defs><linearGradient id="g-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8a3d" stop-opacity=".45"/><stop offset="1" stop-color="#ff8a3d" stop-opacity="0"/></linearGradient></defs>
+            <path class="area" d="M0 60 L20 52 L40 56 L60 40 L80 44 L100 30 L120 36 L140 22 L160 28 L180 14 L200 20 L220 10 L240 16 L240 70 L0 70Z" fill="url(#g-area)"/>
+            <path class="line" d="M0 60 L20 52 L40 56 L60 40 L80 44 L100 30 L120 36 L140 22 L160 28 L180 14 L200 20 L220 10 L240 16"/>
+          </svg>
+        </div>
+        <h3>A console you'll actually open</h3>
+        <p>Live dashboard, request logs, key and session management, audit trail — with real-time charts and nothing to install.</p>
+      </article>
+      <article class="spot feat wide reveal d-4">
+        <div class="feat-visual shield">
+          <div class="ring"></div><div class="ring"></div><div class="ring"></div>
+          <svg viewBox="0 0 24 24" width="34" height="34"><path d="M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6l7-3Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <h3>Hardened by default</h3>
+        <p>Bcrypt logins with lockout, optional TOTP 2FA, signed HttpOnly sessions, CSRF double-submit, AES-256-GCM encrypted secrets, per-key limits, strict CSP. Every admin action is audited.</p>
+      </article>
+      <article class="spot feat reveal d-5">
+        <div class="feat-visual deps display"><span class="n">2</span><span class="mono">runtime deps</span></div>
+        <h3>Lean &amp; auditable</h3>
+        <p>Express and bcryptjs. No telemetry. The only outbound connections go to <code>chatgpt.com</code>. Small enough to read in an afternoon.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── security ─────────────────────────── -->
+  <section class="section security" id="security">
+    <div class="sec-sticky reveal">
+      <span class="eyebrow">Threat model</span>
+      <h2 class="display">Security is <em>the product,</em><br>not a feature.</h2>
+      <p class="dim">This thing guards live ChatGPT sessions. It is built to assume the disk leaks, the key leaks and someone is brute-forcing the login at 3 a.m.</p>
+    </div>
+    <ol class="sec-list">
+      <li class="reveal"><span class="mono n">01</span><div><h4>Secrets encrypted at rest</h4><p>Session and access tokens are AES-256-GCM encrypted with a key derived from <code>SECRET_KEY</code>. A stolen <code>store.json</code> is noise.</p></div></li>
+      <li class="reveal d-1"><span class="mono n">02</span><div><h4>Keys you can't leak twice</h4><p>API keys are stored as SHA-256 hashes and displayed once. Disable or delete any key instantly from the console.</p></div></li>
+      <li class="reveal d-2"><span class="mono n">03</span><div><h4>Logins that fight back</h4><p>bcrypt(12), five strikes and a fifteen-minute lockout per visitor, timing-flat comparisons, optional TOTP 2FA.</p></div></li>
+      <li class="reveal d-3"><span class="mono n">04</span><div><h4>Sessions that can be revoked</h4><p>Signed HttpOnly SameSite=Strict cookies with a server-side version. One click signs out every console everywhere.</p></div></li>
+      <li class="reveal d-4"><span class="mono n">05</span><div><h4>Browser-side defense in depth</h4><p>Strict Content-Security-Policy with no inline scripts, frame denial, nosniff, referrer policy and CSRF double-submit on every mutation.</p></div></li>
+      <li class="reveal d-5"><span class="mono n">06</span><div><h4>Nothing leaves the box</h4><p>Visitor IPs are hashed in logs. There is no telemetry, no analytics, no phone-home. The only upstream is <code>chatgpt.com</code>.</p></div></li>
+    </ol>
+  </section>
+
+  <!-- ─────────────────────────── code ─────────────────────────── -->
+  <section class="section" id="code">
+    <div class="section-head reveal">
+      <span class="eyebrow">Integration</span>
+      <h2 class="display">One base URL. <em>That's the migration.</em></h2>
+    </div>
+    <div class="codebox reveal d-1">
+      <div class="codebox-tabs" role="tablist">
+        <button class="tab active" role="tab" data-tab="curl">curl</button>
+        <button class="tab" role="tab" data-tab="python">Python</button>
+        <button class="tab" role="tab" data-tab="node">Node</button>
+        <button class="tab" role="tab" data-tab="stream">Streaming</button>
+        <span class="tab-ink" id="tab-ink"></span>
+        <button class="copy mono" id="copy-btn">copy</button>
+      </div>
+      <pre class="code mono active" data-pane="curl"><span class="c"># any OpenAI-compatible client works — just change the base URL</span>
+curl https://your-gate/v1/chat/completions \
+  -H <span class="s">"Authorization: Bearer sg-••••"</span> \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{"model":"gpt-6-astra","messages":[{"role":"user","content":"hello, shadow."}]}'</span></pre>
+      <pre class="code mono" data-pane="python"><span class="k">from</span> openai <span class="k">import</span> OpenAI
+
+client = OpenAI(base_url=<span class="s">"https://your-gate/v1"</span>, api_key=<span class="s">"sg-••••"</span>)
+r = client.chat.completions.create(
+    model=<span class="s">"gpt-6-astra"</span>,
+    messages=[{<span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: <span class="s">"hello, shadow."</span>}],
+)
+<span class="k">print</span>(r.choices[<span class="n">0</span>].message.content)</pre>
+      <pre class="code mono" data-pane="node"><span class="k">import</span> OpenAI <span class="k">from</span> <span class="s">"openai"</span>;
+
+<span class="k">const</span> client = <span class="k">new</span> OpenAI({ baseURL: <span class="s">"https://your-gate/v1"</span>, apiKey: <span class="s">"sg-••••"</span> });
+<span class="k">const</span> r = <span class="k">await</span> client.chat.completions.create({
+  model: <span class="s">"gpt-6-astra"</span>,
+  messages: [{ role: <span class="s">"user"</span>, content: <span class="s">"hello, shadow."</span> }],
+});
+console.log(r.choices[<span class="n">0</span>].message.content);</pre>
+      <pre class="code mono" data-pane="stream"><span class="k">const</span> stream = <span class="k">await</span> client.chat.completions.create({
+  model: <span class="s">"gpt-6-astra"</span>, stream: <span class="k">true</span>,
+  messages: [{ role: <span class="s">"user"</span>, content: <span class="s">"Stream me a haiku."</span> }],
+});
+<span class="k">for await</span> (<span class="k">const</span> chunk <span class="k">of</span> stream) {
+  process.stdout.write(chunk.choices[<span class="n">0</span>]?.delta?.content ?? <span class="s">""</span>);
+}
+<span class="c">// frames arrive as chat.completion.chunk and end with data: [DONE]</span></pre>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── cta ─────────────────────────── -->
+  <section class="cta reveal">
+    <div class="cta-inner">
+      <h2 class="display">Run your <em>own</em> gate.</h2>
+      <p class="dim">One server. One gateway. Every OpenAI-compatible tool you already use, powered by sessions you already own.</p>
+      <div class="hero-cta">
+        <a class="btn btn-lg btn-primary" href="/admin">Open the console <span class="arrow">→</span></a>
+        <a class="btn btn-lg btn-ghost" href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">Source on GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ─────────────────────────── footer ─────────────────────────── -->
+  <footer class="footer">
+    <div class="wordmark display" aria-hidden="true"><span>SHADOWGATE · SHADOWGATE · SHADOWGATE · SHADOWGATE · </span><span>SHADOWGATE · SHADOWGATE · SHADOWGATE · SHADOWGATE · </span></div>
+    <div class="foot-row">
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.10.0" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <nav class="foot-links mono"><a href="/docs">docs</a><a href="/admin">console</a><a href="/healthz">health</a><a href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">github</a></nav>
+      <div class="foot-note mono">built by <b>Lucifer</b> · <span id="year"></span> · <span id="ver">v1.1</span></div>
+    </div>
+  </footer>
+
+  <script src="/assets/landing.js?v=1.10.0" defer></script>
+</body>
+</html>

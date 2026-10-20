@@ -1,0 +1,32 @@
+[Unit]
+Description=ShadowGate — private ChatGPT session gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=shadowgate
+Group=shadowgate
+WorkingDirectory=/opt/shadowgate
+EnvironmentFile=/opt/shadowgate/.env
+ExecStart=/opt/node/bin/node dist/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=shadowgate
+
+# hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/shadowgate/data
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target

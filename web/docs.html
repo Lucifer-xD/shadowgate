@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShadowGate — API reference</title>
+  <meta name="description" content="ShadowGate API reference: OpenAI-compatible endpoints, streaming, keys, rate limits and model mapping.">
+  <meta name="theme-color" content="#09080a">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.10.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/assets/base.css?v=1.10.0">
+  <link rel="stylesheet" href="/assets/landing.css?v=1.10.0">
+  <link rel="stylesheet" href="/assets/docs.css?v=1.10.0">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="bg-rays" aria-hidden="true"></div>
+
+  <header class="nav" id="nav">
+    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.10.0" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
+    <nav class="nav-links" aria-label="Site">
+      <a href="/">Home</a><a href="/docs" class="current">Docs</a><a href="/healthz">Health</a>
+    </nav>
+    <div class="nav-right"><a class="btn btn-sm btn-primary" href="/admin">Console <span class="arrow">→</span></a></div>
+  </header>
+
+  <div class="docs">
+    <aside class="toc">
+      <div class="toc-title mono">On this page</div>
+      <nav id="toc">
+        <a href="#quickstart">Quickstart</a>
+        <a href="#auth">Authentication</a>
+        <a href="#chat">Chat completions</a>
+        <a href="#streaming">Streaming</a>
+        <a href="#models">Models</a>
+        <a href="#tools">Function calling</a>
+        <a href="#effort">Reasoning effort</a>
+        <a href="#images">Images</a>
+        <a href="#errors">Errors</a>
+        <a href="#limits">Rate limits</a>
+        <a href="#admin">Admin API</a>
+        <a href="#notes">Notes</a>
+      </nav>
+      <div class="toc-foot mono">base url<br><span id="base-url">—</span></div>
+    </aside>
+
+    <main class="doc">
+      <span class="eyebrow">Reference</span>
+      <h1 class="display">The API, <em>in full.</em></h1>
+      <p class="lede">ShadowGate speaks the OpenAI HTTP API. If a tool can call OpenAI, it can call ShadowGate — change the base URL and the key, nothing else.</p>
+
+      <h2 id="quickstart">Quickstart</h2>
+      <ol class="todo">
+        <li>Open <a href="/admin">the console</a> → <b>Sessions</b> → add a ChatGPT session (raw cookie or export JSON).</li>
+        <li><b>API keys</b> → create a key. Copy the <code>sg-…</code> value: it is shown once and stored as a hash.</li>
+        <li>Point your client at <code>/v1</code>:</li>
+      </ol>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>python</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono"><span class="k">from</span> openai <span class="k">import</span> OpenAI
+
+client = OpenAI(base_url=<span class="s">"https://your-gate/v1"</span>, api_key=<span class="s">"sg-••••"</span>)
+r = client.chat.completions.create(
+    model=<span class="s">"gpt-5"</span>,
+    messages=[{<span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: <span class="s">"hello, shadow."</span>}],
+)
+<span class="k">print</span>(r.choices[<span class="n">0</span>].message.content)</pre>
+      </div>
+
+      <h2 id="auth">Authentication</h2>
+      <p>Send your key as a bearer token on every request. Keys are stored server-side as SHA-256 hashes and can be disabled or deleted at any time from the console. Each key carries its own <b>rpm</b> (requests per minute) and <b>rpd</b> (requests per day) limits.</p>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>header</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono">Authorization: Bearer sg-••••••••••••••••••••••••••••••••••••••••••••••••</pre>
+      </div>
+      <p>Requests to <code>/v1</code> accept any origin (CORS <code>*</code>): the API carries no cookies, so browser-based clients can call it directly with a key.</p>
+
+      <h2 id="chat"><span class="meth post">POST</span> /v1/chat/completions</h2>
+      <p>Creates a completion. The pool picks a healthy session, performs the sentinel handshake and proof-of-work, opens the conversation and translates the stream back into OpenAI's shape.</p>
+      <table class="params">
+        <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td>model</td><td>string</td><td>Any id from <code>/v1/models</code> or an alias; unknown names fall back to <code>auto</code>. See <a href="#models">model mapping</a>.</td></tr>
+          <tr><td>messages</td><td>array</td><td>OpenAI-style messages. <code>system</code> / <code>developer</code> messages are honoured and history is preserved. Array content parts of type <code>text</code> are joined; images are ignored.</td></tr>
+          <tr><td>stream</td><td>boolean</td><td><code>true</code> → server-sent events in the <code>chat.completion.chunk</code> format.</td></tr>
+          <tr><td>reasoning_effort</td><td>string</td><td>minimal / low / medium / high → the backend's thinking effort. See <a href="#effort">reasoning effort</a>.</td></tr>
+          <tr><td>tools, tool_choice</td><td>array</td><td>OpenAI function calling, emulated. See <a href="#tools">function calling</a>.</td></tr>
+          <tr><td>response_format</td><td>object</td><td><code>json_object</code> / <code>json_schema</code>: the model is instructed to answer with bare JSON and fences are stripped (streams are delivered whole).</td></tr>
+          <tr><td>stop, max_tokens</td><td>—</td><td>Applied to the visible text (<code>finish_reason</code> becomes <code>stop</code> / <code>length</code>; tokens are estimated at 4 characters).</td></tr>
+          <tr><td>temperature, top_p, n, seed …</td><td>—</td><td>Accepted and ignored. ChatGPT's web backend does not expose sampling controls.</td></tr>
+        </tbody>
+      </table>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>curl</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono">curl https://your-gate/v1/chat/completions \
+  -H <span class="s">"Authorization: Bearer sg-••••"</span> \
+  -H <span class="s">"Content-Type: application/json"</span> \
+  -d <span class="s">'{
+    "model": "gpt-5",
+    "messages": [{"role": "user", "content": "Summarise the Faust legend in one line."}]
+  }'</span></pre>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>response · 200</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono">{
+  <span class="s">"id"</span>: <span class="s">"chatcmpl-…"</span>,
+  <span class="s">"object"</span>: <span class="s">"chat.completion"</span>,
+  <span class="s">"created"</span>: <span class="n">1760000000</span>,
+  <span class="s">"model"</span>: <span class="s">"gpt-5"</span>,
+  <span class="s">"choices"</span>: [{ <span class="s">"index"</span>: <span class="n">0</span>, <span class="s">"message"</span>: { <span class="s">"role"</span>: <span class="s">"assistant"</span>, <span class="s">"content"</span>: <span class="s">"…"</span> }, <span class="s">"finish_reason"</span>: <span class="s">"stop"</span> }],
+  <span class="s">"usage"</span>: { <span class="s">"prompt_tokens"</span>: <span class="n">12</span>, <span class="s">"completion_tokens"</span>: <span class="n">31</span>, <span class="s">"total_tokens"</span>: <span class="n">43</span> }
+}</pre>
+      </div>
+      <p class="note">Token counts in <code>usage</code> are estimates (characters ÷ 4). ChatGPT's backend does not report exact usage.</p>
+
+      <h2 id="streaming">Streaming</h2>
+      <p>Set <code>"stream": true</code>. You receive <code>text/event-stream</code> frames identical to OpenAI's, ending with <code>data: [DONE]</code>. Every streaming client works unmodified. If the upstream stream is interrupted after output has started, the gateway appends a short bracketed note and closes the stream cleanly.</p>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>event stream</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono">data: {"id":"chatcmpl-…","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-…","object":"chat.completion.chunk","choices":[{"index":0,"delta":{"content":"Hel"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-…","object":"chat.completion.chunk","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: [DONE]</pre>
+      </div>
+      <p>Reasoning models stream their thought summaries as <code>delta.reasoning_content</code> chunks before the answer (the DeepSeek / OpenRouter convention most chat clients render as a collapsible thinking block); in JSON mode the summary is returned as <code>message.reasoning_content</code>. Pass <code>"stream_options": {"include_usage": true}</code> to receive a final usage chunk before <code>[DONE]</code>. When the model runs code or tools on ChatGPT's side, only the visible answer is forwarded.</p>
+      <p>If the client disconnects mid-stream, the upstream conversation is aborted immediately so no quota is wasted. While a reasoning model thinks, the stream carries SSE comment lines every 15 s so idle-connection timeouts (Cloudflare's 100 s, for instance) never cut a long thought short — one more reason agents should stream.</p>
+      <p><b>Large inputs.</b> ChatGPT's backend accepts about <b>480k characters of text per request</b> (roughly 120k tokens) and about 330k in a single message, whatever the model's context window. ShadowGate splits an oversized message for the backend, and when a whole conversation outgrows the budget it <b>compacts the history itself</b> the way an agent harness would: older tool results and turns are clipped first, then the oldest turns are dropped; the system prompt, the first user message and the latest exchange are kept intact. If a single message is over budget on its own it is clipped head-and-tail around a marker that says how much was cut. A compacted request carries an <code>x-shadowgate-compacted: before-&gt;after</code> header; <code>413</code> is now only a last resort. <code>context_length</code> in <code>/v1/models</code> is the model's real context window as chatgpt.com reports it (262k for the GPT-6 family, 137k for GPT-5.6, 410k for Pro); <code>request_budget_tokens</code> is the per-request budget the gateway enforces by compaction (about 120k tokens of text). Images are uploaded as files and do not count against it.</p>
+
+      <h2 id="models"><span class="meth get">GET</span> /v1/models</h2>
+      <p>ShadowGate asks chatgpt.com which models each session's account may use and lists <b>those real slugs</b> (for example <code>gpt-5-6</code>, <code>gpt-5-6-thinking</code>, <code>gpt-5-6-pro</code>, <code>gpt-5-6-mini</code>), one row per real model, each with a title of its own (chatgpt.com calls the whole 5.6 family "GPT-5.6 Sol"; the listing says "GPT-5.6 Sol Instant", "GPT-5.6 Sol Thinking" and so on), its <code>lane</code>, its reasoning metadata, context window and input modalities. The response also carries <code>default_model</code>. Aliases are not listed, but <code>GET /v1/models/{alias}</code> (for example <code>/v1/models/astra</code>) returns the alias with its <code>alias_of</code>; an unknown id is 404. The catalog refreshes every time a session is verified.</p>
+      <p>A real slug is sent upstream unchanged (dots and dashes are interchangeable: <code>gpt-5.6-thinking</code> works). Anything else is an alias:</p>
+      <table class="params">
+        <thead><tr><th>Requested</th><th>Resolved to</th></tr></thead>
+        <tbody>
+          <tr><td>auto, gpt-5, gpt-4o, gpt-4, unknown</td><td>the account's default (router) model</td></tr>
+          <tr><td>*thinking*, o1, o3, o4, or any model with <code>reasoning_effort: high</code></td><td>newest reasoning model of that generation</td></tr>
+          <tr><td>*pro*</td><td>newest Pro model of that generation</td></tr>
+          <tr><td>*mini*, *nano*, gpt-3.5</td><td>newest mini (thinking-mini when combined with "thinking")</td></tr>
+          <tr><td>*instant*</td><td>instant lane</td></tr>
+          <tr><td>astra, luna, sol, terra, gpt-6</td><td>newest model with that codename / generation (<code>astra</code> → <code>gpt-6-astra</code>, <code>sol</code> → <code>gpt-6.1-sol</code>, <code>gpt-6</code> → newest non-Pro GPT-6)</td></tr>
+        </tbody>
+      </table>
+      <p><b>GPT-6 family.</b> <code>gpt-6-astra</code>, <code>gpt-6-luna</code>, <code>gpt-6-sol</code>, <code>gpt-6.1-sol</code> (and the 5.6 codenames <code>gpt-5.6-terra</code>, <code>gpt-5.6-luna</code>, <code>gpt-5.6-sol</code>) are listed under those clean names. Upstream they exist only as work-mode slugs ending in <code>-wm</code>, served inside a work-mode conversation; ShadowGate sends that form automatically, the response's <code>model</code> shows the clean name, and the <code>x-shadowgate-model</code> header shows the exact upstream slug. Each row's <code>upstream_slug</code> says what is sent. Beware the echo trap: chatgpt.com accepts <i>any</i> slug (<code>gpt-6-astra</code> without the suffix, even <code>gpt-9-zeus</code>) and echoes it back as <code>model_slug</code> while quietly answering from the plan's fallback lane, so a bare name proves nothing — only the work-mode form reaches the real model. These models may describe themselves as "GPT-5" or "ChatGPT" when asked; trust the model field.</p>
+      <p>The <code>model</code> field in every response (and every stream chunk) is the slug the backend actually answered with, and the <code>x-shadowgate-model</code> response header shows the resolved slug plus effort. A model your plan cannot use returns <code>429</code> with the upstream message.</p>
+
+      <h2 id="images">Images</h2>
+      <p>Send images the OpenAI way — an <code>image_url</code> content part holding a <code>data:</code> URL or an http(s) URL (PNG, JPEG, GIF or WebP, up to 20 MB each). ShadowGate uploads each one to the account's file service exactly as chatgpt.com does and attaches it to the message, so the model sees the picture, not a description of it. Every listed model carries <code>input_modalities: ["text", "image"]</code>; the same image sent twice on one session is uploaded once.</p>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>image input</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono">{ <span class="s">"model"</span>: <span class="s">"gpt-6-astra"</span>, <span class="s">"messages"</span>: [{ <span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: [
+    { <span class="s">"type"</span>: <span class="s">"text"</span>, <span class="s">"text"</span>: <span class="s">"What is in this screenshot?"</span> },
+    { <span class="s">"type"</span>: <span class="s">"image_url"</span>, <span class="s">"image_url"</span>: { <span class="s">"url"</span>: <span class="s">"data:image/png;base64,iVBORw0…"</span> } } ] }] }</pre>
+      </div>
+
+      <h2 id="tools">Function calling (emulated)</h2>
+      <p>ChatGPT's backend has no native tool calling, so ShadowGate emulates OpenAI's: send <code>tools</code> (or legacy <code>functions</code>) and the model is briefed on them in a system preamble with a strict call format. When it wants to act, the reply arrives as real <code>tool_calls</code> (stream: <code>delta.tool_calls</code> chunks, <code>finish_reason: "tool_calls"</code>). Send the results back as <code>tool</code> messages with <code>tool_call_id</code> and the loop continues, exactly like the OpenAI API. <code>tool_choice</code> <code>auto</code> / <code>required</code> / <code>none</code> / a named function are honoured by instruction. Agent harnesses (OpenCode, Open Interpreter, custom loops) work unmodified.</p>
+      <p class="note">The model also owns a sandbox on OpenAI's side (code execution, browsing). The preamble tells it that sandbox is not your machine and that only the functions reach you; it follows that reliably but not perfectly — if it reports a Linux path when you asked about your PC, it used its own sandbox. Tool calls work best with the thinking and GPT-6 models. When your harness offers no browsing or fetch tool, the model will browse with ChatGPT's own browser instead (slow, and invisible to you) — give it a <code>fetch_url</code> / <code>web_search</code> tool and it prefers yours. Link cards and citations in answers are forwarded as markdown links.</p>
+
+      <h2 id="effort">Reasoning effort</h2>
+      <p>Send OpenAI's <code>reasoning_effort</code> (<code>none</code> / <code>minimal</code> / <code>low</code> / <code>medium</code> / <code>high</code> / <code>xhigh</code>) — or <code>reasoning: {"effort": …}</code>, or ChatGPT's own words <code>standard</code> / <code>extended</code>. ChatGPT's thinking models know exactly two efforts, so the OpenAI levels collapse onto them:</p>
+      <table class="params">
+        <thead><tr><th>reasoning_effort</th><th>thinking_effort sent</th></tr></thead>
+        <tbody>
+          <tr><td>none, minimal, low, medium, standard</td><td>standard</td></tr>
+          <tr><td>high, xhigh, max, extended</td><td>extended</td></tr>
+        </tbody>
+      </table>
+      <p><b>Discoverable.</b> Every entry in <code>/v1/models</code> states its reasoning capability under the names harnesses look for: <code>reasoning</code> / <code>supports_reasoning</code> (boolean), <code>reasoning_efforts</code> (the OpenAI spellings the model accepts), <code>reasoning_effort_map</code> (what each becomes upstream), <code>thinking_efforts</code> (ChatGPT's own values), plus <code>capabilities</code>, <code>input_modalities</code>, <code>max_output_tokens</code> and <code>limit</code>. A harness that reads the listing can build its effort menu from it. Harnesses that only take declared levels per model — ZadLoop and the DeepSeek Harness among them — want the levels in their provider config; for an <code>openai-completions</code> route each model takes a <code>reasoningEfforts</code> map whose values are sent as <code>reasoning_effort</code>:</p>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>ZadLoop / DeepSeek Harness — cordis.patch.yml</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono">providers:
+  shadowgate:
+    displayName: ShadowGate
+    api: openai-completions
+    baseURL: https://ai.shadowvpn.live/v1
+    apiKeyEnv: SHADOWGATE_API_KEY
+    models:
+      - id: gpt-6-astra
+        name: GPT-6 Astra
+        contextWindow: 120000
+        maxTokens: 16384
+        input: [text]
+        reasoningEfforts:
+          low: standard
+          high: extended</pre>
+      </div>
+      <p>The menu then offers Default (the backend's own effort), Low and High. Pro models accept <code>standard</code> only, so they take no <code>reasoningEfforts</code> (or <code>false</code>).</p>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>extended thinking</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono">{ <span class="s">"model"</span>: <span class="s">"gpt-5-thinking"</span>, <span class="s">"reasoning_effort"</span>: <span class="s">"high"</span>,
+  <span class="s">"messages"</span>: [{ <span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: <span class="s">"Prove it carefully."</span> }] }</pre>
+      </div>
+      <p>Asking for <code>high</code> on a non-reasoning alias such as <code>gpt-5</code> upgrades the request to the thinking lane. Models without configurable effort ignore the field.</p>
+
+      <h2 id="errors">Errors</h2>
+      <p>Errors are OpenAI-shaped: <code>{"error": {"message", "type", "param": null, "code": null}}</code>.</p>
+      <table class="params">
+        <thead><tr><th>Status</th><th>Type</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td>400</td><td>invalid_request_error</td><td>Malformed JSON or invalid <code>messages</code>.</td></tr>
+          <tr><td>401</td><td>authentication_error</td><td>Missing or unknown API key.</td></tr>
+          <tr><td>403</td><td>permission_error</td><td>Key disabled.</td></tr>
+          <tr><td>413</td><td>invalid_request_error</td><td>Body over 24 MB, an image over 20 MB, or a conversation that cannot be compacted under the backend's budget.</td></tr>
+          <tr><td>429</td><td>rate_limit_error</td><td>Key limit hit (<code>retry-after</code> set), or the ChatGPT plan's model cap was reached.</td></tr>
+          <tr><td>502</td><td>upstream_error</td><td>ChatGPT refused or dropped the conversation after retries across sessions.</td></tr>
+          <tr><td>503</td><td>service_unavailable</td><td>No healthy sessions in the pool.</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="limits">Rate limits</h2>
+      <p>Per-key sliding windows: <b>120 requests / minute</b> and <b>20 000 / day</b> by default (agent loops make one request per tool round), editable per key in the console. When exceeded the gateway answers <code>429</code> with a <code>retry-after</code> header (seconds). <code>GET /v1/models</code> does not count against the limit.</p>
+
+      <h2 id="admin">Admin API</h2>
+      <p>The console talks to <code>/api/admin/*</code> with a signed HttpOnly cookie and an <code>x-csrf-token</code> header on every mutation. It is not meant for third-party clients, but it is plain JSON if you want to script it:</p>
+      <table class="params">
+        <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>POST /api/admin/login · logout · GET session</td><td>Authenticate (username, password, optional <code>totp</code>) and read the CSRF token.</td></tr>
+          <tr><td>GET /api/admin/stats</td><td>Dashboard numbers: 24 h traffic, hourly buckets, model mix, top keys, pool health.</td></tr>
+          <tr><td>GET · POST · PATCH · DELETE /api/admin/keys</td><td>API key CRUD. The full key is returned once on creation.</td></tr>
+          <tr><td>GET · POST · PATCH · DELETE /api/admin/tokens, POST …/:id/verify</td><td>Session pool CRUD and on-demand verification.</td></tr>
+          <tr><td>GET /api/admin/logs · audit</td><td>Request log (filterable) and the admin audit trail.</td></tr>
+          <tr><td>GET · POST /api/admin/settings · password · totp/* · sessions/revoke</td><td>Console preferences and security.</td></tr>
+        </tbody>
+      </table>
+
+      <h2 id="notes">Notes</h2>
+      <ul class="notes">
+        <li>Session tokens are personal credentials. Keep the gateway private: anyone holding an <code>sg-</code> key spends <b>your</b> ChatGPT quota.</li>
+        <li>When you paste a full session export, ShadowGate reuses the export's device id and user agent. This keeps anti-bot challenges away far better than a random fingerprint.</li>
+        <li>ShadowGate is not affiliated with OpenAI. Automating the ChatGPT web app may violate its terms of use; run it for yourself, with your own accounts.</li>
+      </ul>
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="foot-row">
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.10.0" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <nav class="foot-links mono"><a href="/">home</a><a href="/admin">console</a><a href="/healthz">health</a><a href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">github</a></nav>
+      <div class="foot-note mono">built by <b>Lucifer</b></div>
+    </div>
+  </footer>
+
+  <script src="/assets/docs.js?v=1.10.0" defer></script>
+</body>
+</html>

@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+      - run: npm run check:web
+      - run: npm run build
+      - name: smoke test (server boots, healthz answers)
+        run: |
+          cp .env.example .env
+          (npm start &) 
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4315/healthz > /dev/null; then echo "healthy"; exit 0; fi
+            sleep 1
+          done
+          echo "healthz never answered" && exit 1

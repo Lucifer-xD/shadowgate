@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ShadowGate Console</title>
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#09080a">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.10.0">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/assets/base.css?v=1.10.0">
+  <link rel="stylesheet" href="/assets/admin.css?v=1.10.0">
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <!-- ══════════════════════════ login ══════════════════════════ -->
+  <div id="login" class="login">
+    <aside class="login-side" aria-hidden="true">
+      <svg class="login-gate" viewBox="0 0 520 520" fill="none">
+        <defs>
+          <linearGradient id="lg-beam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff5e6"/><stop offset=".5" stop-color="#ffb46b"/><stop offset="1" stop-color="#ff7a2f"/></linearGradient>
+          <radialGradient id="lg-glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="#ff9a45" stop-opacity=".7"/><stop offset="1" stop-color="#ff9a45" stop-opacity="0"/></radialGradient>
+          <linearGradient id="lg-pillar" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2a2628"/><stop offset="1" stop-color="#131113"/></linearGradient>
+          <filter id="lg-blur"><feGaussianBlur stdDeviation="8"/></filter>
+        </defs>
+        <g class="rings"><circle cx="260" cy="260" r="110"/><circle cx="260" cy="260" r="170"/><circle cx="260" cy="260" r="230"/></g>
+        <circle class="glow" cx="260" cy="260" r="160" fill="url(#lg-glow)"/>
+        <rect x="150" y="90" width="92" height="340" rx="8" fill="url(#lg-pillar)" stroke="#3a3437" stroke-width="1.5"/>
+        <rect x="278" y="90" width="92" height="340" rx="8" fill="url(#lg-pillar)" stroke="#3a3437" stroke-width="1.5"/>
+        <path class="beam-blur" d="M254 100h12l-3 320h-6z" fill="url(#lg-beam)" filter="url(#lg-blur)"/>
+        <path class="beam" d="M256 100h8l-2 320h-4z" fill="url(#lg-beam)"/>
+        <path class="beam-core" d="M258.5 100h3l-1 320h-1z" fill="#fff"/>
+      </svg>
+      <div class="login-lines mono" id="login-lines">
+        <div>› gateway <span id="ll-health">probing…</span></div>
+        <div>› version <span id="ll-version">—</span></div>
+        <div>› secrets <span>aes-256-gcm at rest</span></div>
+        <div>› login <span>bcrypt · lockout · totp</span></div>
+      </div>
+    </aside>
+    <main class="login-main">
+      <form class="login-card" id="login-form" autocomplete="on" novalidate>
+        <a class="brand" href="/"><img src="/assets/logo.svg?v=1.10.0" alt="" width="26" height="26"><span class="brand-word">Shadow<em>Gate</em></span></a>
+        <h1 class="display">Sign in to <em>the gate.</em></h1>
+        <p class="dim">Console access is for the operator only. Every attempt is audited.</p>
+        <label class="field">
+          <span class="mono">username</span>
+          <input type="text" id="in-user" name="username" autocomplete="username" spellcheck="false" autocapitalize="off" required>
+        </label>
+        <label class="field">
+          <span class="mono">password</span>
+          <input type="password" id="in-pass" name="password" autocomplete="current-password" required>
+        </label>
+        <label class="field hidden" id="totp-row">
+          <span class="mono">2fa code</span>
+          <input type="text" id="in-totp" name="totp" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="123456" autocomplete="one-time-code">
+        </label>
+        <button class="btn btn-primary btn-block btn-lg" id="login-btn" type="submit">Enter <span class="arrow">→</span></button>
+        <p class="login-error mono" id="login-error" role="alert"></p>
+      </form>
+    </main>
+  </div>
+
+  <!-- ══════════════════════════ app ══════════════════════════ -->
+  <div id="app" class="app hidden">
+    <aside class="side">
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.10.0" alt="" width="26" height="26"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <nav class="side-nav" id="side-nav" aria-label="Console">
+        <button class="side-item" data-view="chat"><svg viewBox="0 0 24 24"><path d="M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H9l-5 4v-4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm0 2v9h2v2.2L8.3 15H20V6H4Zm3 2h10v2H7V8Zm0 3h7v2H7v-2Z"/></svg><span>Chat</span><kbd>1</kbd></button>
+        <button class="side-item" data-view="dashboard"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v4h-7zM13 10h7v10h-7zM4 13h7v7H4z"/></svg><span>Dashboard</span><kbd>2</kbd></button>
+        <button class="side-item" data-view="keys"><svg viewBox="0 0 24 24"><path d="M14.5 3a6.5 6.5 0 0 0-6.2 8.5L3 16.8V21h4.2l1.4-1.4V17.5h2.1l1.5-1.5v-1.6A6.5 6.5 0 1 0 14.5 3Zm2 6a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg><span>API keys</span><kbd>3</kbd></button>
+        <button class="side-item" data-view="tokens"><svg viewBox="0 0 24 24"><path d="M12 2 4 5.5v6c0 5 3.4 8.2 8 10.5 4.6-2.3 8-5.5 8-10.5v-6L12 2Zm0 4.2L17.5 9v3.2c0 3.2-2.2 5.5-5.5 7.3-3.3-1.8-5.5-4.1-5.5-7.3V9L12 6.2Z"/></svg><span>Sessions</span><kbd>4</kbd></button>
+        <button class="side-item" data-view="logs"><svg viewBox="0 0 24 24"><path d="M4 5h16v2H4zM4 9h16v2H4zM4 13h10v2H4zM4 17h7v2H4z"/></svg><span>Requests</span><kbd>5</kbd></button>
+        <button class="side-item" data-view="audit"><svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9h-2a7 7 0 1 1-7-7V3Zm1 2v6.6l4.6 2.7-1 1.7L11 13V5h2Z"/></svg><span>Audit</span><kbd>6</kbd></button>
+        <button class="side-item" data-view="settings"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.8 7.8 0 0 0-1.7-1L15 3.3H9l-.4 2.6a7.8 7.8 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.8 7.8 0 0 0 1.7 1L9 20.7h6l.4-2.6a7.8 7.8 0 0 0 1.7-1l2.5 1 2-3.5L19.4 13ZM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7Z"/></svg><span>Settings</span><kbd>7</kbd></button>
+      </nav>
+      <div class="side-foot">
+        <div class="user"><div class="avatar" id="user-avatar">A</div><div><div class="u-name" id="user-name">admin</div><div class="u-role mono">operator</div></div></div>
+        <button class="side-item subtle" id="logout-btn"><svg viewBox="0 0 24 24"><path d="M10 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h5v-2H5V5h5V3Zm5.6 4.6L14.2 9l3 3H8v2h9.2l-3 3 1.4 1.4L21 12l-5.4-4.4Z"/></svg><span>Sign out</span></button>
+        <div class="version mono" id="version-label">—</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="top">
+        <div class="top-title">
+          <span class="eyebrow" id="view-eyebrow">console</span>
+          <h1 class="display" id="view-title">Dashboard</h1>
+        </div>
+        <div class="top-right">
+          <span class="pool-pill mono" id="pool-pill"><span class="led off"></span><span id="pool-pill-text">pool —</span></span>
+          <span class="clock mono" id="clock">00:00:00</span>
+          <button class="icon-btn" id="refresh-btn" title="Refresh (r)"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7Z" fill="currentColor"/></svg></button>
+        </div>
+      </header>
+
+      <div class="banner hidden" id="pw-banner">
+        <span>A generated password is in use. Set your own one in <b>Settings → Password</b> before exposing this console.</span>
+        <button class="btn btn-sm btn-primary" id="pw-banner-btn">Change it now</button>
+      </div>
+
+      <section class="view hidden" id="view-chat"></section>
+      <section class="view" id="view-dashboard"></section>
+      <section class="view hidden" id="view-keys"></section>
+      <section class="view hidden" id="view-tokens"></section>
+      <section class="view hidden" id="view-logs"></section>
+      <section class="view hidden" id="view-audit"></section>
+      <section class="view hidden" id="view-settings"></section>
+    </main>
+  </div>
+
+  <div id="modal-root"></div>
+  <div id="toast-root"></div>
+  <script src="/assets/admin.js?v=1.10.0" defer></script>
+</body>
+</html>

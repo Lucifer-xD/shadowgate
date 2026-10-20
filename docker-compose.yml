@@ -1,0 +1,33 @@
+services:
+  shadowgate:
+    build: .
+    container_name: shadowgate
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:4315:4315"
+    volumes:
+      - ./data:/app/data
+    read_only: false
+    security_opt:
+      - no-new-privileges:true
+
+  # Optional TLS terminator — put your domain in the Caddyfile
+  caddy:
+    image: caddy:2-alpine
+    container_name: shadowgate-caddy
+    restart: unless-stopped
+    profiles: ["tls"]
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - shadowgate
+
+volumes:
+  caddy_data:
+  caddy_config:

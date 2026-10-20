@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="pillar" x1="0" y1="8" x2="0" y2="56" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3a3531"/>
+      <stop offset="1" stop-color="#1b1917"/>
+    </linearGradient>
+    <linearGradient id="beam" x1="0" y1="12" x2="0" y2="52" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff3df"/>
+      <stop offset="0.45" stop-color="#ffb46b"/>
+      <stop offset="1" stop-color="#ff7a2f"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="32" cy="32" r="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ff9a45" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#ff9a45" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="22" fill="url(#glow)"/>
+  <rect x="9" y="8" width="17" height="48" rx="3" fill="url(#pillar)" stroke="#574f48" stroke-width="1.5"/>
+  <rect x="38" y="8" width="17" height="48" rx="3" fill="url(#pillar)" stroke="#574f48" stroke-width="1.5"/>
+  <path d="M30 12 L34 12 L33.2 52 L30.8 52 Z" fill="url(#beam)"/>
+  <path d="M30 12 L34 12 L33.2 52 L30.8 52 Z" fill="#fff" opacity=".35"/>
+</svg>

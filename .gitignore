@@ -1,0 +1,30 @@
+# secrets — never commit
+.env
+.env.*
+!.env.example
+
+# runtime state
+data/
+*.db
+*.db-journal
+*.log
+
+# build output
+dist/
+node_modules/
+
+# os junk
+.DS_Store
+Thumbs.db
+
+# deploy artefacts & scratch secrets — never commit
+*.tar.gz
+.deploy-secrets*
+deploy-bundle*
+docs/screenshots/*.tmp.png
+
+# ChatGPT enterprise admin API spec dropped in by hand — not part of the gateway
+openapi.json
+
+# local copy of docs/astra-request-flow.md kept at the root for sharing
+/astra-request-flow*.md

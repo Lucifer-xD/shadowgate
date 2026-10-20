@@ -1,0 +1,10 @@
+node_modules
+dist
+data
+.env
+.env.*
+docs/screenshots
+scripts
+*.md
+.git
+.github
