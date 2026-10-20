@@ -113,7 +113,17 @@ export class TokenPool {
         (!t.coolUntil || t.coolUntil < now) &&
         !(modelSlug && t.modelCaps?.[modelSlug] && t.modelCaps[modelSlug] > now),
     );
-    if (usable.length === 0) return null;
+    if (usable.length === 0) {
+      // last resort: a session that is only cooling (not expired, not blocked) is better than refusing the request
+      const cooling = this.store.tokens.filter((t) => !exclude.has(t.id) && t.status === 'cooling' && !(modelSlug && t.modelCaps?.[modelSlug] && t.modelCaps[modelSlug] > now));
+      if (!cooling.length) return null;
+      cooling.sort((a, b) => (a.coolUntil ?? 0) - (b.coolUntil ?? 0));
+      const t = cooling[0];
+      console.warn(`[pool] no healthy session — trying ${t.label} although it is cooling`);
+      t.lastUsed = nowIso();
+      this.store.flush();
+      return t;
+    }
     usable.sort((a, b) => (a.lastUsed ?? '').localeCompare(b.lastUsed ?? ''));
     const t = usable[0];
     t.lastUsed = nowIso();
@@ -173,6 +183,14 @@ export class TokenPool {
       // throttled or challenged — back off, keep the session
       t.status = 'cooling';
       t.coolUntil = Date.now() + 3 * 60_000;
+    } else if (code === 0 && /fetch failed|ECONN|ETIMEDOUT|ENOTFOUND|EAI_AGAIN|socket hang up|network/i.test(`${msg} ${cause ?? ''}`)) {
+      // our side (or the route to chatgpt.com) blipped — not the session's fault; back off briefly only
+      t.failCount++;
+      if (t.failCount >= 3) {
+        t.status = 'cooling';
+        t.coolUntil = Date.now() + 20_000;
+        t.failCount = 0;
+      }
     } else {
       t.failCount++;
       if (t.failCount >= 4) {

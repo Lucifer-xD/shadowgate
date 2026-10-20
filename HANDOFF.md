@@ -17,8 +17,8 @@ paths and credentials in a private notes file outside the repository.
 | Bind address | `127.0.0.1` only (`BIND_HOST` in `.env`); public access only through the proxy / CDN |
 | Rollback copies | `/var/backups/shadowgate/app-v<version>/` — one per deploy |
 
-The app is a single Node 22 process with two runtime dependencies (express,
-bcryptjs). Build with `npm run build` (TypeScript → `dist/`), serve `web/`
+The app is a single Node 22 process with three runtime dependencies (express,
+bcryptjs, gpt-tokenizer). Build with `npm run build` (TypeScript → `dist/`), serve `web/`
 statically.
 
 ## Deploying a new version

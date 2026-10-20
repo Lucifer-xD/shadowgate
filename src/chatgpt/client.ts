@@ -142,31 +142,57 @@ export interface ModelInfo {
    * and sends "gpt-6-astra-wm" (with the work-mode conversation shape) upstream.
    */
   upstreamSlug?: string;
+  /** a bare GPT-6 slug sent in an ordinary chat conversation (listed on request; see withCleanWorkModels) */
+  direct?: boolean;
 }
 
 /**
- * The GPT-6 family (and the 5.6 codenames) exist only as work-mode slugs
- * ("gpt-6-astra-wm"), served when the conversation carries
- * conversation_origin: "tpp". Give each one a clean public name without the
- * suffix; requests for the clean name are routed to the real work-mode model.
+ * Two lanes reach the GPT-6 family, and both are listed:
  *
- * Why not the bare slug: chatgpt.com echoes ANY slug back as model_slug —
- * "gpt-6-astra", "gpt-9-zeus" and "gpt-6" all answer, all identically, from
- * the plan's fallback lane (system-prompt name "GPT-6", cutoff Aug 2024),
- * while "gpt-6-astra-wm" in work mode is a different model (cutoff Aug 2025).
- * Verified 2026-10-20. The echo makes the bare names look real; they are not.
+ *  - work-mode slugs ("gpt-6-astra-wm"), served inside a work-mode
+ *    conversation (conversation_origin "tpp"): the backend reports
+ *    requested_model_experience "work" and gives the model a container
+ *    sandbox; continuing such a conversation requires it to be saved in the
+ *    account's history.
+ *  - the bare slugs ("gpt-6-astra", "gpt-6", "gpt-6-thinking" …), sent in an
+ *    ordinary chat conversation: the backend accepts them, echoes the slug back
+ *    and serves the chat lane (experience "instant" / "thinking"); these
+ *    conversations continue inside temporary chats, so nothing is saved to the
+ *    account. The backend echoes ANY slug this way, so the bare rows below are
+ *    the ones that were asked for explicitly, with the lane they map to.
+ *
+ * The listing marks them `work_mode` and `direct` respectively; codename
+ * aliases ("astra") prefer the bare slug.
  */
+export const DIRECT_MODELS: Array<{ slug: string; title: string; reasoning: string }> = [
+  { slug: 'gpt-6', title: 'GPT-6', reasoning: 'auto' },
+  { slug: 'gpt-6-thinking', title: 'GPT-6 Thinking', reasoning: 'reasoning' },
+  { slug: 'gpt-6-astra', title: 'GPT-6 Astra', reasoning: 'auto' },
+  { slug: 'gpt-6-astra-thinking', title: 'GPT-6 Astra Thinking', reasoning: 'reasoning' },
+  { slug: 'gpt-6-luna', title: 'GPT-6 Luna', reasoning: 'auto' },
+  { slug: 'gpt-6-sol', title: 'GPT-6 Sol', reasoning: 'auto' },
+  { slug: 'gpt-6.1-sol', title: 'GPT-6.1 Sol', reasoning: 'auto' },
+];
+
 export function withCleanWorkModels(cat: ModelCatalog): ModelCatalog {
   if (!cat.models.length) return cat;
   const have = new Set(cat.models.map((m) => m.slug.toLowerCase()));
-  const clean: ModelInfo[] = [];
-  for (const m of cat.models) {
-    if (!m.workMode || !/-wm$/i.test(m.slug)) continue;
-    const name = m.slug.slice(0, -3);
-    if (have.has(name.toLowerCase())) continue;
-    clean.push({ ...m, slug: name, upstreamSlug: m.slug });
+  const anyWm = cat.models.find((m) => m.workMode);
+  const extra: ModelInfo[] = [];
+  for (const d of DIRECT_MODELS) {
+    if (have.has(d.slug.toLowerCase())) continue;
+    const twin = cat.models.find((m) => m.slug === `${d.slug}-wm`);
+    extra.push({
+      slug: d.slug,
+      title: d.title,
+      reasoning: d.reasoning,
+      efforts: ['standard', 'extended'],
+      maxTokens: twin?.maxTokens ?? anyWm?.maxTokens ?? 262_144,
+      direct: true,
+    });
   }
-  return uniqueTitles(clean.length ? { ...cat, models: [...cat.models, ...clean] } : cat);
+  const models = [...cat.models, ...extra].map((m) => (m.workMode && !/work mode/i.test(m.title) ? { ...m, title: `${m.title} (work mode)` } : m));
+  return uniqueTitles({ ...cat, models });
 }
 
 /** Kept for callers that used the old name. */
@@ -181,7 +207,7 @@ export const withDirectModels = withCleanWorkModels;
 export function uniqueTitles(cat: ModelCatalog): ModelCatalog {
   // only listed models compete for a title; the unlisted -wm twins keep theirs
   const count = new Map<string, number>();
-  for (const m of cat.models) if (!/-wm$/i.test(m.slug)) count.set(m.title, (count.get(m.title) ?? 0) + 1);
+  for (const m of cat.models) count.set(m.title, (count.get(m.title) ?? 0) + 1);
   const suffix = (slug: string): string => {
     const s = slug.toLowerCase();
     if (/-t-mini$/.test(s)) return 'Thinking Mini';
@@ -193,7 +219,7 @@ export function uniqueTitles(cat: ModelCatalog): ModelCatalog {
     return 'Auto';
   };
   const models = cat.models.map((m) => {
-    if (/-wm$/i.test(m.slug) || (count.get(m.title) ?? 0) < 2) return m;
+    if ((count.get(m.title) ?? 0) < 2) return m;
     const sfx = suffix(m.slug);
     return m.title.toLowerCase().includes(sfx.toLowerCase()) ? m : { ...m, title: `${m.title} ${sfx}` };
   });
@@ -316,11 +342,11 @@ export function resolveModel(requested: string | undefined, effortReq: string | 
   const pick = (pred: (m: ModelInfo) => boolean, preferPlain = true): ModelInfo | undefined => {
     const c = models.filter((m) => m.slug !== 'research' && pred(m));
     c.sort((a, b) =>
-      (preferPlain ? Number(!!a.workMode) - Number(!!b.workMode) : 0) ||
+      (preferPlain ? Number(!!a.workMode || !!a.direct) - Number(!!b.workMode || !!b.direct) : 0) ||
       versionOf(b.slug) - versionOf(a.slug) ||
       Number(!!a.workMode) - Number(!!b.workMode) ||
-      // among twins prefer the clean name (so "astra" → gpt-6-astra, sent as gpt-6-astra-wm)
-      Number(/-wm$/i.test(a.slug)) - Number(/-wm$/i.test(b.slug)));
+      // among twins prefer the bare slug ("astra" → gpt-6-astra); the -wm form is reachable by exact name
+      Number(!!a.workMode) - Number(!!b.workMode));
     if (wantMajor) {
       const same = c.find((m) => m.slug.match(/^gpt-(\d+)/)?.[1] === wantMajor);
       if (same) return same;
@@ -684,10 +710,18 @@ export async function* parseChatGPTSSE(
 
   const kinds = new Set<string>();
   let lastAssistantId = '';
+  const erroredIds = new Set<string>();
   const handleMessage = function* (m: any): Generator<StreamEvent> {
     if (!m || !m.id) return;
     if (skipIds.has(m.id)) return; // echo of a message we sent (history / system prompt)
     meta.set(m.id, m);
+    // the backend reports some failures inside the message itself (e.g. work_usage_limit_exceeded:
+    // "Your workspace is out of credits") with an empty, partially-finished text — surface them as errors
+    const em = m.metadata?.error_metadata;
+    if (em && typeof em === 'object' && (em.error_code || em.error_message) && !erroredIds.has(m.id)) {
+      erroredIds.add(m.id);
+      yield { upstreamError: { code: String(em.error_code ?? 'upstream_error'), message: String(em.error_message ?? ''), can_retry: em.can_retry } };
+    }
     if (m.author?.role === 'assistant' && (m.content?.content_type === 'text' || m.content?.content_type === 'multimodal_text')) lastAssistantId = m.id;
     if (m.author?.role === 'assistant' || m.author?.role === 'tool') {
       const k = m.author.role === 'tool' ? `tool:${m.author.name ?? '?'}` : `${m.content?.content_type ?? '?'}${m.recipient && m.recipient !== 'all' ? `→${m.recipient}` : ''}`;

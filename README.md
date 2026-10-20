@@ -36,7 +36,7 @@ Tools speak OpenAI's HTTP API. ChatGPT accounts speak the web. ShadowGate is the
 - **Pools your sessions.** Least-recently-used rotation, automatic access-token refresh, cooldown on throttling, hourly retries of expired sessions, a health check every ten minutes.
 - **Is hardened end to end.** bcrypt logins with per-visitor lockout (2FA codes count as strikes too), optional TOTP, signed HttpOnly sessions, CSRF double-submit, AES-256-GCM encrypted secrets, per-key rate limits, strict CSP with zero inline scripts, hashed IPs, full audit trail.
 - **Has a console you'll actually open.** A built-in chat with a conversation sidebar (pick any real model and thinking effort, streaming replies, markdown, retry, search), live dashboard, request log, key and session management, audit trail, keyboard shortcuts — vanilla HTML/CSS/JS with no build step. Optionally records `/v1` traffic as read-only transcripts in the same sidebar.
-- **Stays auditable.** Two runtime dependencies (`express`, `bcryptjs`). No telemetry. The only outbound connections go to `chatgpt.com`.
+- **Stays auditable.** Three runtime dependencies (`express`, `bcryptjs`, `gpt-tokenizer` for exact token counts). No telemetry. The only outbound connections go to `chatgpt.com`.
 
 ## Screenshots
 

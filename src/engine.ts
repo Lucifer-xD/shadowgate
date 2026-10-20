@@ -67,7 +67,7 @@ export function describeUpstreamError(e: unknown): string {
 /** Quota / model-cap errors — the session is fine, the plan just ran dry. */
 export function isModelCap(e: unknown): boolean {
   const text = describeUpstreamError(e).toLowerCase();
-  return /model_cap|cap_exceeded|hit your limit|usage limit|too many requests|rate limit/.test(text);
+  return /model_cap|cap_exceeded|hit your limit|usage limit|usage_limit|out of credits|too many requests|rate limit/.test(text);
 }
 
 function retryable(err: unknown): boolean {
@@ -91,7 +91,7 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
   let servedEffort: string | undefined;
   const tried = new Set<string>();
   let wantSlug: string | undefined; // resolved upstream slug, once known — lets pick() skip capped sessions
-  const policy = opts.store.settings.continuation ?? 'all';
+  const policy = opts.store.settings.continuation ?? 'temp';
   let cont: ContinuationHit | null = policy === 'off' ? null : findContinuation(messages, model, effort);
   let contFailures = 0; // a broken continuation is retried as a full resend and must not eat a session attempt
 

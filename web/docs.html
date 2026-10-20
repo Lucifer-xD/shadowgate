@@ -6,20 +6,20 @@
   <title>ShadowGate — API reference</title>
   <meta name="description" content="ShadowGate API reference: OpenAI-compatible endpoints, streaming, keys, rate limits and model mapping.">
   <meta name="theme-color" content="#09080a">
-  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.12.0">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.13.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/assets/base.css?v=1.12.0">
-  <link rel="stylesheet" href="/assets/landing.css?v=1.12.0">
-  <link rel="stylesheet" href="/assets/docs.css?v=1.12.0">
+  <link rel="stylesheet" href="/assets/base.css?v=1.13.0">
+  <link rel="stylesheet" href="/assets/landing.css?v=1.13.0">
+  <link rel="stylesheet" href="/assets/docs.css?v=1.13.0">
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
   <div class="bg-rays" aria-hidden="true"></div>
 
   <header class="nav" id="nav">
-    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.12.0" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
+    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.13.0" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
     <nav class="nav-links" aria-label="Site">
       <a href="/">Home</a><a href="/docs" class="current">Docs</a><a href="/healthz">Health</a>
     </nav>
@@ -113,7 +113,7 @@ r = client.chat.completions.create(
   <span class="s">"usage"</span>: { <span class="s">"prompt_tokens"</span>: <span class="n">12</span>, <span class="s">"completion_tokens"</span>: <span class="n">31</span>, <span class="s">"total_tokens"</span>: <span class="n">43</span> }
 }</pre>
       </div>
-      <p class="note">Token counts in <code>usage</code> are estimates (characters ÷ 4). ChatGPT's backend does not report exact usage.</p>
+      <p class="note">Token counts in <code>usage</code> are exact: the gateway counts the prompt and the reply with OpenAI's <code>o200k_base</code> tokenizer (the GPT-5/6 encoding), images at the standard 765 tokens each. ChatGPT's backend itself reports no usage.</p>
 
       <h2 id="streaming">Streaming</h2>
       <p>Set <code>"stream": true</code>. You receive <code>text/event-stream</code> frames identical to OpenAI's, ending with <code>data: [DONE]</code>. Every streaming client works unmodified. If the upstream stream is interrupted after output has started, the gateway appends a short bracketed note and closes the stream cleanly.</p>
@@ -130,7 +130,7 @@ data: [DONE]</pre>
       <p>Reasoning models stream their thought summaries as <code>delta.reasoning_content</code> chunks before the answer (the DeepSeek / OpenRouter convention most chat clients render as a collapsible thinking block); in JSON mode the summary is returned as <code>message.reasoning_content</code>. Pass <code>"stream_options": {"include_usage": true}</code> to receive a final usage chunk before <code>[DONE]</code>. When the model runs code or tools on ChatGPT's side, only the visible answer is forwarded.</p>
       <p>If the client disconnects mid-stream, the upstream conversation is aborted immediately so no quota is wasted. While a reasoning model thinks, the stream carries SSE comment lines every 15 s so idle-connection timeouts (Cloudflare's 100 s, for instance) never cut a long thought short — one more reason agents should stream.</p>
       <p><b>Large inputs.</b> ChatGPT's backend accepts about <b>480k characters of text per request</b> (roughly 120k tokens) and about 330k in a single message, whatever the model's context window. ShadowGate splits an oversized message for the backend, and when a whole conversation outgrows the budget and cannot be continued (see below) it <b>compacts the history itself</b>: the middle of the conversation is condensed by a fast model into a summary that keeps every identifier, path, number, decision and open task (long middles are summarised in parts so nothing is skipped), while the system prompt, the task statement and the latest turns stay verbatim; only if that is still over budget, or the summariser is unavailable, are old tool results clipped. If a single message is over budget on its own it is clipped head-and-tail around a marker that says how much was cut. A compacted request carries an <code>x-shadowgate-compacted: before-&gt;after</code> header; <code>413</code> is now only a last resort. <code>context_length</code> in <code>/v1/models</code> is the model's real context window as chatgpt.com reports it (262k for the GPT-6 family, 137k for GPT-5.6, 410k for Pro); <code>request_budget_tokens</code> is the per-request budget the gateway enforces by compaction (about 120k tokens of text). Images are uploaded as files and do not count against it.</p>
-      <p><b>Continuation.</b> Agent harnesses resend the whole conversation every turn. When a request is the previous conversation plus new messages, ShadowGate sends only the new messages into the backend conversation it already has, instead of re-uploading the history: faster turns, and the per-request budget applies only to what is new. The response carries <code>x-shadowgate-continued: N</code> (messages sent) and reports the part of the context the backend already held as <code>usage.prompt_tokens_details.cached_tokens</code>, so harnesses that show a cache-hit rate see one. The links survive a gateway restart (they live in <code>data/continuation.json</code>). Anything that changes the history — an edit, a compaction, another model or effort — misses the cache and falls back to a full resend, which is always correct; a continuation the backend has lost is resent in full automatically. Plain models continue inside temporary chats (nothing is saved to the account). GPT-6 work-mode models can only continue a saved conversation, so with the default setting their conversations appear in the ChatGPT account's history while active and are hidden again after 25 minutes idle (and on shutdown). Settings → <i>conversation continuation</i> switches between all models, plain models only, or off.</p>
+      <p><b>Continuation.</b> Agent harnesses resend the whole conversation every turn. When a request is the previous conversation plus new messages, ShadowGate sends only the new messages into the backend conversation it already has, instead of re-uploading the history: faster turns, and the per-request budget applies only to what is new. The response carries <code>x-shadowgate-continued: N</code> (messages sent) and reports the part of the context the backend already held as <code>usage.prompt_tokens_details.cached_tokens</code>, so harnesses that show a cache-hit rate see one. The links survive a gateway restart (they live in <code>data/continuation.json</code>). Anything that changes the history — an edit, a compaction, another model or effort — misses the cache and falls back to a full resend, which is always correct; a continuation the backend has lost is resent in full automatically. Plain models and the bare GPT-6 slugs continue inside temporary chats (nothing is saved to the account). The <code>-wm</code> work-mode models can only continue a <i>saved</i> conversation, and a saved work-mode conversation runs through ChatGPT's Codex work experience, which spends the workspace's work credits — so by default they are not continued (every turn is a full resend, as before) and nothing is saved. Settings → <i>conversation continuation</i> can enable it for work-mode models too (conversations then appear in the account's history while active and are hidden after 25 minutes idle), or switch continuation off entirely. When a workspace runs out of work credits the backend answers <code>work_usage_limit_exceeded</code>; ShadowGate returns it as <code>429 model_cap_reached</code> with the backend's message and fails over to another session when one can serve the model.</p>
       <p><b>Usage caps.</b> When an account hits ChatGPT's usage cap for a model, the gateway remembers that for an hour and serves the same model from another session in the pool; <code>429 model_cap_reached</code> only comes back when no session can serve it.</p>
 
       <h2 id="models"><span class="meth get">GET</span> /v1/models</h2>
@@ -144,10 +144,10 @@ data: [DONE]</pre>
           <tr><td>*pro*</td><td>newest Pro model of that generation</td></tr>
           <tr><td>*mini*, *nano*, gpt-3.5</td><td>newest mini (thinking-mini when combined with "thinking")</td></tr>
           <tr><td>*instant*</td><td>instant lane</td></tr>
-          <tr><td>astra, luna, sol, terra, gpt-6</td><td>newest model with that codename / generation (<code>astra</code> → <code>gpt-6-astra</code>, <code>sol</code> → <code>gpt-6.1-sol</code>, <code>gpt-6</code> → newest non-Pro GPT-6)</td></tr>
+          <tr><td>astra, luna, sol, terra</td><td>newest model with that codename — the bare slug when one is listed (<code>astra</code> → <code>gpt-6-astra</code>), else the work-mode one (<code>terra</code> → <code>gpt-5.6-terra-wm</code>)</td></tr>
         </tbody>
       </table>
-      <p><b>GPT-6 family.</b> <code>gpt-6-astra</code>, <code>gpt-6-luna</code>, <code>gpt-6-sol</code>, <code>gpt-6.1-sol</code> (and the 5.6 codenames <code>gpt-5.6-terra</code>, <code>gpt-5.6-luna</code>, <code>gpt-5.6-sol</code>) are listed under those clean names. Upstream they exist only as work-mode slugs ending in <code>-wm</code>, served inside a work-mode conversation; ShadowGate sends that form automatically, the response's <code>model</code> shows the clean name, and the <code>x-shadowgate-model</code> header shows the exact upstream slug. Each row's <code>upstream_slug</code> says what is sent. Beware the echo trap: chatgpt.com accepts <i>any</i> slug (<code>gpt-6-astra</code> without the suffix, even <code>gpt-9-zeus</code>) and echoes it back as <code>model_slug</code> while quietly answering from the plan's fallback lane, so a bare name proves nothing — only the work-mode form reaches the real model. These models may describe themselves as "GPT-5" or "ChatGPT" when asked; trust the model field.</p>
+      <p><b>GPT-6 family — two lanes, both listed.</b> The <b>work-mode</b> rows end in <code>-wm</code> (<code>gpt-6-astra-wm</code>, <code>gpt-6-luna-wm</code>, <code>gpt-6-sol-wm</code>, <code>gpt-6.1-sol-wm</code>, the 5.6 codenames) and are served inside a work-mode conversation, which ShadowGate opens automatically; the backend reports experience <code>work</code> and gives the model a container sandbox, and continuing such a conversation keeps it saved in the ChatGPT account while active. The <b>bare</b> rows (<code>gpt-6-astra</code>, <code>gpt-6</code>, <code>gpt-6-thinking</code>, <code>gpt-6-astra-thinking</code>, <code>gpt-6-luna</code>, <code>gpt-6-sol</code>, <code>gpt-6.1-sol</code>) are sent as-is in an ordinary chat conversation: the backend accepts them, echoes the slug back and serves the chat lane (experience <code>instant</code>, or <code>thinking</code> for the thinking names); their conversations continue inside temporary chats, so nothing is saved to the account. Be aware that chatgpt.com echoes <i>any</i> slug this way, even a made-up one, so a bare name is not proof of a distinct model — the listing carries <code>work_mode</code>, <code>direct</code> and a <code>lane_note</code> on every row so you can pick knowingly. Codename aliases (<code>astra</code>) resolve to the bare slug; the work-mode form is reachable by its exact name. These models may describe themselves as "GPT-5", "GPT-6" or "ChatGPT" when asked; trust the model field.</p>
       <p>The <code>model</code> field in every response (and every stream chunk) is the slug the backend actually answered with, and the <code>x-shadowgate-model</code> response header shows the resolved slug plus effort. A model your plan cannot use returns <code>429</code> with the upstream message.</p>
 
       <h2 id="images">Images</h2>
@@ -242,12 +242,12 @@ data: [DONE]</pre>
 
   <footer class="footer">
     <div class="foot-row">
-      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.12.0" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.13.0" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
       <nav class="foot-links mono"><a href="/">home</a><a href="/admin">console</a><a href="/healthz">health</a><a href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">github</a></nav>
       <div class="foot-note mono">built by <b>Lucifer</b></div>
     </div>
   </footer>
 
-  <script src="/assets/docs.js?v=1.12.0" defer></script>
+  <script src="/assets/docs.js?v=1.13.0" defer></script>
 </body>
 </html>

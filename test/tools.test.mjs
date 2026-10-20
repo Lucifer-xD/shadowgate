@@ -53,6 +53,8 @@ test('looksLikeUnfulfilledIntent: announcements and refusals yes, answers no', (
   assert.equal(looksLikeUnfulfilledIntent("I can't truthfully verify the file contents from that failed attempt."), true);
   assert.equal(looksLikeUnfulfilledIntent('[shadowgate: the model produced no text for this turn]'), true);
   assert.equal(looksLikeUnfulfilledIntent('Python 3.12.10 is installed on your PC.'), false);
+  // a reply that shows content is an answer, even when it talks about the harness
+  assert.equal(looksLikeUnfulfilledIntent('Saved and read back. Angle brackets are escaped below to prevent execution by the harness.\n```\n&lt;tool_call&gt;{...}&lt;/tool_call&gt;\nnever run this\n```'), false);
   assert.equal(looksLikeUnfulfilledIntent('Do you want me to delete it?'), false);
 });
 

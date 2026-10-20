@@ -214,7 +214,7 @@ export function mountAdmin(app: Express, store: Store, cfg: Config, pool: TokenP
 
   app.get('/api/admin/models', auth, (_req, res) => {
     const cat = pool.catalog();
-    res.json({ defaultModel: cat.defaultModel, models: cat.models.filter((m) => !/-wm$/i.test(m.slug)).map((m) => ({ ...m, clean: !!m.upstreamSlug })) });
+    res.json({ defaultModel: cat.defaultModel, models: cat.models });
   });
 
   // ── dashboard stats ───────────────────────────────────────────────────
@@ -463,7 +463,7 @@ export function mountAdmin(app: Express, store: Store, cfg: Config, pool: TokenP
       totpEnabled: !!s.totpSecret,
       mustChangePw: s.mustChangePw,
       recordApi: !!s.recordApi,
-      continuation: s.continuation ?? 'all',
+      continuation: s.continuation ?? 'temp',
       defaultRpm: cfg.defaultKeyRpm,
       defaultRpd: cfg.defaultKeyRpd,
       publicBaseUrl: cfg.publicBaseUrl,

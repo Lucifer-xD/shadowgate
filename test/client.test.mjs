@@ -17,23 +17,29 @@ const catalog = () => withCleanWorkModels({
   ],
 });
 
-test('work-mode models get clean names that route to the -wm slug in work mode', () => {
+test('both lanes are listed: bare GPT-6 slugs (chat lane) and -wm work-mode slugs', () => {
   const cat = catalog();
-  const astra = cat.models.find((m) => m.slug === 'gpt-6-astra');
-  assert.ok(astra);
-  assert.equal(astra.upstreamSlug, 'gpt-6-astra-wm');
+  const bare = cat.models.find((m) => m.slug === 'gpt-6-astra');
+  const wm = cat.models.find((m) => m.slug === 'gpt-6-astra-wm');
+  assert.ok(bare && bare.direct && !bare.workMode);
+  assert.ok(wm && wm.workMode);
+  assert.match(wm.title, /work mode/);
   const r = resolveModel('gpt-6-astra', 'high', cat);
-  assert.equal(r.slug, 'gpt-6-astra-wm');
-  assert.equal(r.workMode, true);
+  assert.equal(r.slug, 'gpt-6-astra');
+  assert.equal(r.workMode, undefined);
   assert.equal(r.effort, 'extended');
+  const w = resolveModel('gpt-6-astra-wm', 'high', cat);
+  assert.equal(w.slug, 'gpt-6-astra-wm');
+  assert.equal(w.workMode, true);
+  assert.ok(cat.models.some((m) => m.slug === 'gpt-6' && m.direct));
 });
 
 test('codename and bare-generation aliases', () => {
   const cat = catalog();
-  assert.equal(resolveModel('astra', undefined, cat).slug, 'gpt-6-astra-wm');
-  assert.equal(resolveModel('sol', undefined, cat).slug, 'gpt-6.1-sol-wm');
+  assert.equal(resolveModel('astra', undefined, cat).slug, 'gpt-6-astra');
+  assert.equal(resolveModel('sol', undefined, cat).slug, 'gpt-6.1-sol');
   assert.equal(resolveModel('terra', undefined, cat).slug, 'gpt-5.6-terra-wm');
-  assert.equal(resolveModel('gpt-6', undefined, cat).slug, 'gpt-6.1-sol-wm');
+  assert.equal(resolveModel('gpt-6', undefined, cat).slug, 'gpt-6');
 });
 
 test('lane aliases stay on the listed plain models', () => {

@@ -3,7 +3,8 @@ import type { Express, Request, Response, NextFunction } from 'express';
 import { Store, ApiKeyRecord, RequestLog } from './store.js';
 import { Config } from './config.js';
 import { TokenPool } from './pool.js';
-import { estimateTokens, nowIso, sha256hex, uuid } from './util.js';
+import { nowIso, sha256hex, uuid } from './util.js';
+import { countMessageTokens, countTokens } from './tokens.js';
 import { runCompletion } from './engine.js';
 import { ChatStore, recordApiExchange } from './chats.js';
 import { findContinuation } from './continuation.js';
@@ -116,8 +117,8 @@ const ALIAS_IDS = ['auto', 'astra', 'luna', 'sol', 'gpt-6', 'gpt-5', 'gpt-5-thin
 function modelList(pool: TokenPool) {
   const cat = pool.catalog();
   const created = 1735689600;
-  // raw -wm slugs stay resolvable but are not listed: their clean names cover the family
-  const real = cat.models.filter((m) => !/-wm$/i.test(m.slug)).map((m) => {
+  // every row is listed: the bare GPT-6 slugs (chat lane) and the -wm work-mode slugs
+  const real = cat.models.map((m) => {
     const reasons = m.efforts.length > 0 || m.reasoning === 'reasoning' || m.reasoning === 'pro';
     const efforts = cg.effortTable(m.efforts);
     const effortIds = Object.keys(efforts);
@@ -159,6 +160,8 @@ function modelList(pool: TokenPool) {
     // the slug sent to chatgpt.com (work-mode models need their -wm form plus a work-mode conversation)
     upstream_slug: m.upstreamSlug ?? m.slug,
     work_mode: !!m.workMode,
+    direct: !!m.direct,
+    lane_note: m.workMode ? 'work-mode conversation; continuation keeps the chat saved in the account while active' : m.direct ? 'chat lane; the backend echoes the slug; continues inside temporary chats' : undefined,
   };
   });
   // aliases (auto, gpt-5, o3, astra …) keep resolving but are not listed: one row per real model
@@ -375,7 +378,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       typeof body.thinking_effort === 'string' ? body.thinking_effort : undefined;
     let totalChars = textSize(messages);
     // a continuation sends only the new messages upstream, so only those must fit the per-request budget
-    const hit = (store.settings.continuation ?? 'all') !== 'off' ? findContinuation(messages, model, effortReq) : null;
+    const hit = (store.settings.continuation ?? 'temp') !== 'off' ? findContinuation(messages, model, effortReq) : null;
     const upstreamChars = hit ? textSize(hit.newMessages) : totalChars;
     if (upstreamChars > MAX_CHARS) {
       // Harnesses that never compact would die here with a 413. Compact for them:
@@ -402,8 +405,10 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       console.warn(`[gateway] compacted history ${before} -> ${totalChars} chars for key ${key.name}`);
     }
     const stream = !!body.stream;
-    // what the backend already held when this request continued a conversation — reported as cached tokens
-    const cachedTokens = () => (result?.continued ? Math.max(0, estimateTokens(totalChars) - estimateTokens(upstreamChars)) : 0);
+    // exact o200k token counts: the whole prompt, and the part the backend already held on a continued request
+    let promptTokensMemo: number | undefined;
+    const promptTokens = () => (promptTokensMemo ??= countMessageTokens(messages));
+    const cachedTokens = () => (result?.continued && hit ? Math.max(0, promptTokens() - countMessageTokens(hit.newMessages)) : 0);
     let servedModel = model; // replaced by the slug the backend reports
     const completionId = `chatcmpl-${uuid().replace(/-/g, '').slice(0, 24)}`;
     const created = Math.floor(Date.now() / 1000);
@@ -581,7 +586,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
         res.write(chunk({}, finish));
         if (body.stream_options?.include_usage) {
           res.write(`data: ${JSON.stringify({ id: completionId, object: 'chat.completion.chunk', created, model: servedModel, choices: [], usage: {
-            prompt_tokens: estimateTokens(totalChars), completion_tokens: estimateTokens(result.text.length), total_tokens: estimateTokens(totalChars) + estimateTokens(result.text.length),
+            prompt_tokens: promptTokens(), completion_tokens: countTokens(result.text), total_tokens: promptTokens() + countTokens(result.text),
             prompt_tokens_details: { cached_tokens: cachedTokens() }, cached_tokens: cachedTokens(),
           } })}\n\n`);
         }
@@ -607,9 +612,9 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
             finish_reason: finish,
           }],
           usage: {
-            prompt_tokens: estimateTokens(totalChars),
-            completion_tokens: estimateTokens(result.text.length),
-            total_tokens: estimateTokens(totalChars) + estimateTokens(result.text.length),
+            prompt_tokens: promptTokens(),
+            completion_tokens: countTokens(result.text),
+            total_tokens: promptTokens() + countTokens(result.text),
             prompt_tokens_details: { cached_tokens: cachedTokens() },
             cached_tokens: cachedTokens(),
           },

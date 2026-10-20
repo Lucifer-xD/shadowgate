@@ -544,8 +544,8 @@
           <label class="toggle"><input type="checkbox" id="set-record" ${s.recordApi ? 'checked' : ''}> record /v1 API conversations in Chat (read-only transcripts, stored on this server)</label>
           <label class="field"><span>conversation continuation</span>
             <select id="set-cont">
-              <option value="all" ${s.continuation === 'all' ? 'selected' : ''}>all models — fastest; GPT-6 work-mode chats are saved in the ChatGPT account while active, hidden after 25 min idle</option>
-              <option value="temp" ${s.continuation === 'temp' ? 'selected' : ''}>plain models only — temporary chats, nothing saved in the account</option>
+              <option value="temp" ${s.continuation === 'temp' ? 'selected' : ''}>plain and bare GPT-6 models — temporary chats, nothing saved in the account (default)</option>
+              <option value="all" ${s.continuation === 'all' ? 'selected' : ''}>also -wm work-mode models — their chats are SAVED in the ChatGPT account while active and run through the Codex work experience, which spends the workspace's work credits</option>
               <option value="off" ${s.continuation === 'off' ? 'selected' : ''}>off — resend the whole history every turn</option>
             </select></label>
           <p class="dim" style="font-size:.78rem">A request that is the previous conversation plus new messages sends only the new messages upstream. Edited or compacted histories fall back to a full resend automatically.</p>
@@ -676,21 +676,27 @@
     // model picker
     const sel = $('#chat-model', el);
     sel.add(new Option(`auto · account default (${chat.defaultModel})`, 'auto'));
-    const direct = chat.models.filter((m) => m.clean);
+    const direct = chat.models.filter((m) => m.direct);
     if (direct.length) {
       const g = document.createElement('optgroup'); g.label = 'GPT-6 family';
       for (const m of direct) g.appendChild(new Option(`${m.title} · ${m.slug}`, m.slug));
       sel.appendChild(g);
     }
+    const wm = chat.models.filter((m) => m.workMode);
+    if (wm.length) {
+      const g = document.createElement('optgroup'); g.label = 'GPT-6 family · work mode';
+      for (const m of wm) g.appendChild(new Option(`${m.title} · ${m.slug}`, m.slug));
+      sel.appendChild(g);
+    }
     const lanes = [['reasoning', 'Thinking'], ['pro', 'Pro'], ['instant', 'Instant'], ['none', 'Instant'], ['auto', 'Router']];
     for (const [lane, label] of lanes) {
-      const ms = chat.models.filter((m) => m.reasoning === lane && !m.workMode && !m.clean);
+      const ms = chat.models.filter((m) => m.reasoning === lane && !m.workMode && !m.direct);
       if (!ms.length) continue;
       const g = document.createElement('optgroup'); g.label = label;
       for (const m of ms) g.appendChild(new Option(`${m.slug} · ${m.title}`, m.slug));
       sel.appendChild(g);
     }
-    const rest = chat.models.filter((m) => !m.workMode && !m.clean && !lanes.some(([l]) => l === m.reasoning));
+    const rest = chat.models.filter((m) => !m.workMode && !m.direct && !lanes.some(([l]) => l === m.reasoning));
     if (rest.length) { const g = document.createElement('optgroup'); g.label = 'Other'; for (const m of rest) g.appendChild(new Option(`${m.slug} · ${m.title}`, m.slug)); sel.appendChild(g); }
 
     const paintList = () => {
@@ -734,7 +740,7 @@
     };
     const renderMsg = (m, streaming = false) => `
       <div class="msg ${m.role} ${streaming ? 'streaming' : ''}" data-mid="${m.id}">
-        <div class="mark">${m.role === 'user' ? esc((state.username[0] || 'u').toUpperCase()) : '<img src="/assets/logo.svg?v=1.12.0" alt="">'}</div>
+        <div class="mark">${m.role === 'user' ? esc((state.username[0] || 'u').toUpperCase()) : '<img src="/assets/logo.svg?v=1.13.0" alt="">'}</div>
         <div class="body">
           ${m.role === 'assistant' && m.reasoning ? `<details class="think"><summary>Thought process</summary><div>${esc(m.reasoning)}</div></details>` : ''}
           <div class="bubble ${m.error && !m.content ? 'err' : ''} ${m.role === 'assistant' ? 'md' : ''}">${m.role === 'assistant' ? (m.content ? md(m.content) : esc(m.error || '')) : esc(m.content)}</div>
