@@ -203,6 +203,29 @@
     led.className = 'led ' + (total === 0 || healthy === 0 ? 'bad' : healthy < total ? 'warn' : '');
   }
 
+  // ── usage meters (ChatGPT's 5-hour / weekly windows) ──
+  const dur = (sec) => {
+    const d = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60);
+    return d ? `${d}d ${h}h` : h ? `${h}h ${m}m` : `${Math.max(1, m)}m`;
+  };
+  const meter = (name, w) => {
+    if (!w) return '';
+    const left = w.resets_at ? Math.max(0, (Date.parse(w.resets_at) - Date.now()) / 1000) : null;
+    const tone = w.used_percent >= 90 ? 'bad' : w.used_percent >= 70 ? 'warn' : '';
+    return `<div class="bar"><span class="name">${name}</span><div class="track"><div class="fill ${tone}" data-w="${w.used_percent}"></div></div><span class="num">${w.used_percent}%</span></div>
+      <div class="reset ${w.used_percent >= 100 ? 'hit' : ''}">${w.remaining_percent}% left${left != null ? ` · resets in ${dur(left)}` : ''}</div>`;
+  };
+  const usageBlock = (u) => {
+    if (!u || !u.fetched_at) return `<div class="usage"><div class="note">${u && u.error ? esc('usage: ' + u.error) : 'usage: not checked yet'}</div></div>`;
+    const c = u.credits;
+    const extra = [
+      u.limit_reached ? '<b style="color:var(--bad)">limit reached</b>' : '',
+      c ? (c.unlimited ? 'credits: unlimited' : c.hasCredits ? `credits: ${esc(String(c.balance ?? 'yes'))}` : 'no extra credits') : '',
+      `checked ${ago(u.fetched_at)}`,
+    ].filter(Boolean).join(' · ');
+    return `<div class="usage">${meter('5-hour', u.five_hour)}${meter('weekly', u.weekly)}<div class="note">${extra}</div></div>`;
+  };
+
   const statusBadge = (st) => ({
     healthy: '<span class="badge ok"><span class="bdot"></span>healthy</span>',
     cooling: '<span class="badge warn"><span class="bdot"></span>cooling</span>',
@@ -261,7 +284,7 @@
           ${s.models.length ? s.models.slice(0, 6).map((m) => `<div class="bar"><span class="name">${esc(m.model)}</span><div class="track"><div class="fill" data-w="${((m.count / s.models[0].count) * 100).toFixed(1)}"></div></div><span class="num">${nf(m.count)}</span></div>`).join('') : '<div class="empty"><div class="glyph">∅</div>No requests in the last 24 hours</div>'}
           ${s.topKeys.length ? `<h3 style="margin-top:1.4rem">Top keys <span class="sub">24h</span></h3>${s.topKeys.map((k) => `<div class="bar"><span class="name">${esc(k.name)}</span><div class="track"><div class="fill cool" data-w="${((k.count / s.topKeys[0].count) * 100).toFixed(1)}"></div></div><span class="num">${nf(k.count)}</span></div>`).join('')}` : ''}
           <h3 style="margin-top:1.4rem">Pool <span class="sub">${s.poolTotal} session${s.poolTotal === 1 ? '' : 's'}</span></h3>
-          <div class="pool-list">${s.pool.length ? s.pool.map((t) => `<div class="pool-item"><span class="led ${t.status === 'healthy' ? '' : t.status === 'expired' ? 'bad' : t.status === 'cooling' ? 'warn' : 'off'}"></span><span>${esc(t.label)} <span class="mono">${esc(t.email || '')}</span></span><span class="mono">${esc(t.plan || t.status)}</span></div>`).join('') : '<div class="empty" style="padding:1rem"><span>No sessions yet — add one under Sessions.</span></div>'}</div>
+          <div class="pool-list">${s.pool.length ? s.pool.map((t) => `<div class="pool-item"><span class="led ${t.status === 'healthy' ? '' : t.status === 'expired' ? 'bad' : t.status === 'cooling' ? 'warn' : 'off'}"></span><span>${esc(t.label)} <span class="mono">${esc(t.email || '')}</span></span><span class="mono">${esc(t.plan || t.status)}</span></div><div class="pool-usage">${usageBlock(t.usage)}</div>`).join('') : '<div class="empty" style="padding:1rem"><span>No sessions yet — add one under Sessions.</span></div>'}</div>
         </div>
       </div>
       <div class="card tbl-wrap"><table class="tbl"><thead><tr><th>Time</th><th>Key</th><th>Model</th><th>Status</th><th>Latency</th><th>Stream</th></tr></thead>
@@ -396,10 +419,20 @@
             ${t.coolUntil ? `<span>cooldown</span><b>${Math.max(0, Math.ceil((t.coolUntil - Date.now()) / 60000))} min left</b>` : ''}
             ${t.models?.length ? `<span>models</span><b title="${esc(t.models.map((m) => m.slug).join('\n'))}">${t.models.length} · default ${esc(t.defaultModel || '—')}</b>` : ''}
           </div>
+          <div data-usage="${t.id}">${usageBlock(t.usage)}</div>
           ${t.models?.length ? `<div class="lanes">${t.models.filter((m) => m.slug !== 'research').map((m) => `<span class="lane ${m.workMode ? 'work' : esc(m.reasoning)}" title="${esc(m.title)}${m.workMode ? ' · work mode' : ''}${m.efforts.length ? ' · effort: ' + m.efforts.join('/') : ''}">${esc(m.workMode ? m.title : m.slug)}</span>`).join('')}</div>` : ''}
           ${t.lastError ? `<div class="err-line">${esc(t.lastError)}</div>` : ''}
           <div class="actions"><button class="btn btn-sm" data-verify>Verify now</button><div class="spacer"></div><button class="btn btn-sm btn-danger" data-del>Remove</button></div>
         </div>`).join('') : '<div class="card empty" style="grid-column:1/-1"><div class="glyph">⌁</div>The pool is empty. Add a ChatGPT session to bring the gate online.</div>'}</div>`;
+
+    const paintFills = () => requestAnimationFrame(() => $$('.fill', el).forEach((f) => { f.style.width = `${f.dataset.w}%`; }));
+    paintFills();
+    if (tokens.length) {
+      api('/api/admin/usage').then((r) => {
+        for (const a of r.accounts) { const box = el.querySelector(`[data-usage="${a.id}"]`); if (box) box.innerHTML = usageBlock(a); }
+        paintFills();
+      }).catch(() => { /* keep the cached meters */ });
+    }
 
     $('#add-token', el).addEventListener('click', () => {
       const back = modal(`
@@ -741,7 +774,7 @@
     };
     const renderMsg = (m, streaming = false) => `
       <div class="msg ${m.role} ${streaming ? 'streaming' : ''}" data-mid="${m.id}">
-        <div class="mark">${m.role === 'user' ? esc((state.username[0] || 'u').toUpperCase()) : '<img src="/assets/logo.svg?v=1.14.0" alt="">'}</div>
+        <div class="mark">${m.role === 'user' ? esc((state.username[0] || 'u').toUpperCase()) : '<img src="/assets/logo.svg?v=1.15.0" alt="">'}</div>
         <div class="body">
           ${m.role === 'assistant' && m.reasoning ? `<details class="think"><summary>Thought process</summary><div>${esc(m.reasoning)}</div></details>` : ''}
           <div class="bubble ${m.error && !m.content ? 'err' : ''} ${m.role === 'assistant' ? 'md' : ''}">${m.role === 'assistant' ? (m.content ? md(m.content) : esc(m.error || '')) : esc(m.content)}</div>

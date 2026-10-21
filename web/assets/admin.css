@@ -136,6 +136,16 @@ body { font-size: 14px; }
 .bar .fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--ember-deep), var(--ember-hot)); border-radius: 4px; transition: width 1.1s var(--ease-out); box-shadow: 0 0 10px rgba(var(--ember-rgb), 0.5); }
 .bar .fill.cool { background: linear-gradient(90deg, #3b6a99, var(--cool)); box-shadow: none; }
 .bar .num { text-align: right; color: var(--mute); font-family: var(--f-mono); font-size: 0.74rem; }
+.bar .fill.warn { background: linear-gradient(90deg, #8a6a1f, var(--warn, #e0b341)); box-shadow: none; }
+.bar .fill.bad { background: linear-gradient(90deg, #7a2420, var(--bad)); box-shadow: 0 0 10px rgba(var(--bad-rgb), 0.45); }
+
+/* usage meters (ChatGPT 5-hour / weekly windows) */
+.usage { display: grid; gap: 0.15rem; }
+.usage .bar { margin-bottom: 0; grid-template-columns: 64px 1fr 44px; }
+.usage .reset { font-family: var(--f-mono); font-size: 0.64rem; color: var(--faint); margin: 0 0 0.35rem calc(64px + 0.7rem); }
+.usage .reset.hit { color: var(--bad); }
+.usage .note { font-size: 0.72rem; color: var(--faint); }
+.pool-usage { margin: 0.2rem 0 0.7rem 1.1rem; }
 
 /* tables */
 .tbl-wrap { overflow-x: auto; padding: 0; }

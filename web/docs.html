@@ -6,20 +6,20 @@
   <title>ShadowGate — API reference</title>
   <meta name="description" content="ShadowGate API reference: OpenAI-compatible endpoints, streaming, keys, rate limits and model mapping.">
   <meta name="theme-color" content="#09080a">
-  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.14.0">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.15.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/assets/base.css?v=1.14.0">
-  <link rel="stylesheet" href="/assets/landing.css?v=1.14.0">
-  <link rel="stylesheet" href="/assets/docs.css?v=1.14.0">
+  <link rel="stylesheet" href="/assets/base.css?v=1.15.0">
+  <link rel="stylesheet" href="/assets/landing.css?v=1.15.0">
+  <link rel="stylesheet" href="/assets/docs.css?v=1.15.0">
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
   <div class="bg-rays" aria-hidden="true"></div>
 
   <header class="nav" id="nav">
-    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.14.0" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
+    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.15.0" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
     <nav class="nav-links" aria-label="Site">
       <a href="/">Home</a><a href="/docs" class="current">Docs</a><a href="/healthz">Health</a>
     </nav>
@@ -38,6 +38,7 @@
         <a href="#models">Models</a>
         <a href="#tools">Function calling</a>
         <a href="#effort">Reasoning effort</a>
+        <a href="#usage">Usage</a>
         <a href="#images">Images</a>
         <a href="#errors">Errors</a>
         <a href="#limits">Rate limits</a>
@@ -176,6 +177,23 @@ data: [DONE]</pre>
       <p><b>GPT-6 family — what is real, and what is unmetered.</b> The <b>real</b> GPT-6 models are the work-mode rows ending in <code>-wm</code> (<code>gpt-6-astra-wm</code>, <code>gpt-6.1-sol-wm</code>, <code>gpt-6-luna-wm</code>, <code>gpt-6-sol-wm</code>, the 5.6 codenames). They are served only inside a work-mode conversation, which ShadowGate opens automatically, and they spend the ChatGPT workspace's work credits. The <b>unmetered chat lane</b> is listed once, as <code>gpt-6</code> (“GPT-6 (chat lane, unmetered)”): chatgpt.com's chat endpoint answers <i>every</i> GPT-6-style name — <code>gpt-6-astra</code>, <code>gpt-6.1-sol</code>, even a made-up <code>gpt-9-zeus</code> — with one and the same configuration whose system prompt calls it “GPT-6” (measured on a live session: the Astra name and the made-up name gave identical answers; <code>gpt-5-6</code> calls itself “GPT-5.6 Sol”). So any GPT-6 name without <code>-wm</code> is sent there as <code>gpt-6</code>, and the reply's <code>model</code> says <code>gpt-6</code>, which is what actually answered. Real Astra in the unlimited chat lane is not something chatgpt.com offers; the only real Astra is <code>gpt-6-astra-wm</code>.</p>
       <p>The <code>model</code> field in every response (and every stream chunk) is the slug the backend actually answered with, and the <code>x-shadowgate-model</code> response header shows the resolved slug plus effort. A model your plan cannot use returns <code>429</code> with the upstream message.</p>
 
+      <h2 id="usage"><span class="meth get">GET</span> /v1/usage</h2>
+      <p>The usage limits of the ChatGPT accounts behind the gateway — the same numbers chatgpt.com shows under <b>Settings → Usage</b> — plus what the calling API key has spent on the gateway. Each account reports a <b>5-hour</b> window and a <b>weekly</b> window, each with the percentage used, the percentage left and when it resets, its credits and per-model availability. Work-mode models (<code>-wm</code>) spend these limits; the chat lane (<code>gpt-6</code>, <code>gpt-5-6</code> and the other non <code>-wm</code> models) is not counted against them.</p>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>request</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono">curl https://ai.shadowvpn.live/v1/usage -H "Authorization: Bearer sg-…"
+curl "https://ai.shadowvpn.live/v1/usage?format=text" -H "Authorization: Bearer sg-…"</pre>
+      </div>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>response (shortened)</span></div>
+        <pre class="mono">{"object":"usage","accounts":[{"label":"Main Account","plan":"k12","limit_reached":false,
+  "five_hour":{"used_percent":0,"remaining_percent":100,"resets_at":"2026-10-21T19:41:00.000Z","resets_in_seconds":18000},
+  "weekly":{"used_percent":31,"remaining_percent":69,"resets_at":"2026-10-24T16:31:00.000Z","resets_in_seconds":275414},
+  "credits":{"hasCredits":false,"unlimited":false},"models":{"gpt-6-astra":{"available":true}}}],
+ "key":{"name":"opencode","requests_5h":3,"requests_24h":10,"rpd_limit":20000,"remaining_today":19990}}</pre>
+      </div>
+      <p><b>Ask the model.</b> In any client — ZadLoop, OpenCode, the console chat — ask the model about your usage (“what's my usage?”, “how much of my weekly limit is left?”, “كم استخدامي؟”). The gateway notices the question, attaches the live numbers to that one message and the model answers from them. Nothing changes for other messages, and the attached data never breaks conversation continuation. Snapshots are cached for two minutes, so asking again never puts extra load on the account; the health check also refreshes them every ten minutes. The console shows the same meters on every session card and on the dashboard.</p>
+
       <h2 id="images">Images</h2>
       <p>Send images the OpenAI way — an <code>image_url</code> content part holding a <code>data:</code> URL or an http(s) URL (PNG, JPEG, GIF or WebP, up to 20 MB each). ShadowGate uploads each one to the account's file service exactly as chatgpt.com does and attaches it to the message, so the model sees the picture, not a description of it. Every listed model carries <code>input_modalities: ["text", "image"]</code>; the same image sent twice on one session is uploaded once.</p>
       <div class="codeblock">
@@ -249,6 +267,7 @@ data: [DONE]</pre>
         <thead><tr><th>Endpoint</th><th>Purpose</th></tr></thead>
         <tbody>
           <tr><td>POST /api/admin/login · logout · GET session</td><td>Authenticate (username, password, optional <code>totp</code>) and read the CSRF token.</td></tr>
+          <tr><td>GET /api/admin/usage</td><td>Usage limits of every session (5-hour and weekly windows, credits), cached for two minutes.</td></tr>
           <tr><td>GET /api/admin/stats</td><td>Dashboard numbers: 24 h traffic, hourly buckets, model mix, top keys, pool health.</td></tr>
           <tr><td>GET · POST · PATCH · DELETE /api/admin/keys</td><td>API key CRUD. The full key is returned once on creation.</td></tr>
           <tr><td>GET · POST · PATCH · DELETE /api/admin/tokens, POST …/:id/verify</td><td>Session pool CRUD and on-demand verification.</td></tr>
@@ -268,12 +287,12 @@ data: [DONE]</pre>
 
   <footer class="footer">
     <div class="foot-row">
-      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.14.0" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.15.0" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
       <nav class="foot-links mono"><a href="/">home</a><a href="/admin">console</a><a href="/healthz">health</a><a href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">github</a></nav>
       <div class="foot-note mono">built by <b>Lucifer</b></div>
     </div>
   </footer>
 
-  <script src="/assets/docs.js?v=1.14.0" defer></script>
+  <script src="/assets/docs.js?v=1.15.0" defer></script>
 </body>
 </html>

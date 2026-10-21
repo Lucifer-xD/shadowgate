@@ -849,3 +849,85 @@ export async function* parseChatGPTSSE(
     try { await body.cancel(); } catch { /* ignore */ }
   }
 }
+
+export interface UsageWindow {
+  /** 0–100, as chatgpt.com's Usage page shows it */
+  usedPercent: number;
+  windowSeconds: number;
+  /** epoch seconds when the window resets */
+  resetAt: number;
+}
+
+export interface UsageSnapshot {
+  fetchedAt: string;
+  plan?: string;
+  allowed: boolean;
+  limitReached: boolean;
+  /** the short window (5 hours on current plans) */
+  primary?: UsageWindow;
+  /** the long window (weekly on current plans) */
+  secondary?: UsageWindow;
+  credits?: { hasCredits: boolean; unlimited: boolean; overageLimitReached: boolean; balance?: number; approxLocalMessages?: number[]; approxCloudMessages?: number[] };
+  /** per-model availability the account reports (e.g. gpt-6-astra) */
+  models?: Record<string, { available: boolean; availableAt?: number }>;
+}
+
+function usageWindow(w: any): UsageWindow | undefined {
+  if (!w || typeof w.used_percent !== 'number') return undefined;
+  const windowSeconds = Number(w.limit_window_seconds) || 0;
+  const resetAt = Number(w.reset_at) || (Number(w.reset_after_seconds) ? Math.floor(Date.now() / 1000) + Number(w.reset_after_seconds) : 0);
+  return { usedPercent: Math.max(0, Math.min(100, w.used_percent)), windowSeconds, resetAt };
+}
+
+const numPair = (v: unknown): number[] | undefined =>
+  Array.isArray(v) ? v.filter((x): x is number => typeof x === 'number') : typeof v === 'number' ? [v] : undefined;
+
+/** Parse the body of GET /backend-api/wham/usage (exported for tests). */
+export function parseUsage(j: any, now = new Date()): UsageSnapshot {
+  const rl = j?.rate_limit ?? {};
+  const c = j?.credits;
+  const models: UsageSnapshot['models'] = {};
+  for (const [slug, m] of Object.entries((j?.model_usage ?? {}) as Record<string, any>)) {
+    if (m && typeof m === 'object') models[slug] = { available: m.available !== false, ...(typeof m.available_at === 'number' ? { availableAt: m.available_at } : {}) };
+  }
+  return {
+    fetchedAt: now.toISOString(),
+    plan: typeof j?.plan_type === 'string' ? j.plan_type : undefined,
+    allowed: rl.allowed !== false,
+    limitReached: !!rl.limit_reached,
+    primary: usageWindow(rl.primary_window),
+    secondary: usageWindow(rl.secondary_window),
+    credits: c && typeof c === 'object'
+      ? {
+          hasCredits: !!c.has_credits,
+          unlimited: !!c.unlimited,
+          overageLimitReached: !!c.overage_limit_reached,
+          ...(c.balance != null && !Number.isNaN(Number(c.balance)) ? { balance: Number(c.balance) } : {}),
+          ...(numPair(c.approx_local_messages) ? { approxLocalMessages: numPair(c.approx_local_messages) } : {}),
+          ...(numPair(c.approx_cloud_messages) ? { approxCloudMessages: numPair(c.approx_cloud_messages) } : {}),
+        }
+      : undefined,
+    models: Object.keys(models).length ? models : undefined,
+  };
+}
+
+/** The account's usage limits — the same data as chatgpt.com → Settings → Usage. One light GET. */
+export async function fetchUsage(creds: ConversationCreds): Promise<UsageSnapshot> {
+  const r = await fetch(`${BASE}/backend-api/wham/usage`, {
+    signal: AbortSignal.timeout(20_000),
+    headers: {
+      'user-agent': creds.ua,
+      accept: '*/*',
+      authorization: `Bearer ${creds.accessToken}`,
+      'oai-device-id': creds.deviceId,
+      'oai-language': 'en-US',
+      referer: `${BASE}/codex/settings/usage`,
+      ...(creds.accountId ? { 'chatgpt-account-id': creds.accountId } : {}),
+    },
+  });
+  if (r.status === 401) throw new UpstreamError(401, 'session_expired', 'usage -> 401');
+  if (r.status !== 200) throw new UpstreamError(r.status, 'usage_failed', `usage -> ${r.status}`);
+  const j = await r.json().catch(() => null);
+  if (!j || typeof j !== 'object') throw new UpstreamError(502, 'usage_failed', 'usage returned no JSON');
+  return parseUsage(j);
+}

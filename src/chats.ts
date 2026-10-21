@@ -8,6 +8,7 @@ import type { OpenAIMessage } from './chatgpt/client.js';
 import { runCompletion, type CompletionResult } from './engine.js';
 import type { TokenPool } from './pool.js';
 import type { Store } from './store.js';
+import { asksAboutUsage, usageNote, usageReport, usageText } from './usage.js';
 
 export interface ChatMessage {
   id: string;
@@ -296,6 +297,12 @@ export function mountChats(
     const history: OpenAIMessage[] = c.messages
       .filter((m) => !m.error)
       .map((m) => ({ role: m.role, content: m.content }));
+    // same as /v1: a usage question gets the live numbers attached (not stored in the chat)
+    const last = history[history.length - 1];
+    if (last?.role === 'user' && typeof last.content === 'string' && asksAboutUsage(last.content)) {
+      await pool.refreshAllUsage().catch(() => {});
+      history[history.length - 1] = { ...last, content: last.content + usageNote(usageText(usageReport(store))) };
+    }
 
     const result = await runCompletion({
       pool,

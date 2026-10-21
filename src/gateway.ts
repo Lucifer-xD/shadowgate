@@ -11,6 +11,7 @@ import { findContinuation } from './continuation.js';
 import { summarizeHistory } from './summarize.js';
 import { NUDGE_EMPTY_MESSAGE, NUDGE_MESSAGE, ToolCallStream, callKey, extractToolCalls, injectToolPreamble, looksLikeShortAnnouncement, looksLikeUnfulfilledIntent, normalizeToolChoice, normalizeTools, toolPreamble, transformMessagesForTools, type ToolCall } from './tools.js';
 import * as cg from './chatgpt/client.js';
+import { asksAboutUsage, usageNote, usageReport, usageText } from './usage.js';
 
 // Measured 2026-10: chatgpt.com accepts ~400k characters per request in total (~120k tokens)
 // and ~330k per single message; the latter is handled by splitting (client.ts).
@@ -222,6 +223,19 @@ export function textSize(messages: cg.OpenAIMessage[]): number {
 }
 
 /** Replace the text of a message, keeping any image parts it carries. */
+/** Append a note to a message's text (the last text part of a multi-part message). */
+function appendText(m: cg.OpenAIMessage, note: string): cg.OpenAIMessage {
+  if (!Array.isArray(m.content)) return { ...m, content: `${m.content ?? ''}${note}` };
+  const parts = m.content.map((p) => ({ ...p }));
+  const i = parts.map((p) => p.type).lastIndexOf('text');
+  if (i === -1) parts.push({ type: 'text', text: note.trim() });
+  else parts[i] = { ...parts[i], text: `${parts[i].text ?? ''}${note}` };
+  return { ...m, content: parts };
+}
+
+const textOfMessage = (m: cg.OpenAIMessage): string =>
+  typeof m.content === 'string' ? m.content : Array.isArray(m.content) ? m.content.filter((p) => p.type === 'text').map((p) => p.text ?? '').join('\n') : '';
+
 function withText(m: cg.OpenAIMessage, text: string): cg.OpenAIMessage {
   if (!Array.isArray(m.content)) return { ...m, content: text };
   const images = m.content.filter((p) => p.type !== 'text');
@@ -333,6 +347,18 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     res.json(hit);
   });
 
+  // the ChatGPT account limits (5-hour / weekly windows, credits) + this key's own gateway usage
+  app.get('/v1/usage', apiKeyAuth(store, false), async (req, res) => {
+    const key = (req as any).apiKey as ApiKeyRecord;
+    await pool.refreshAllUsage().catch(() => {});
+    const report = usageReport(store, key);
+    if (String(req.query.format ?? '') === 'text') {
+      res.type('text/plain; charset=utf-8').send(usageText(report));
+      return;
+    }
+    res.json(report);
+  });
+
   app.post('/v1/chat/completions', apiKeyAuth(store, true), async (req, res) => {
     const key = (req as any).apiKey as ApiKeyRecord;
     const started = Date.now();
@@ -357,6 +383,13 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       messages = transformMessagesForTools(messages);
     }
     if (toolMode) messages = injectToolPreamble(messages, toolPreamble(tools, toolChoice), tools);
+    // "what's my usage?" from any client: attach the live numbers so the model answers from real data
+    const lastIdx = messages.length - 1;
+    if (lastIdx >= 0 && messages[lastIdx].role === 'user' && asksAboutUsage(textOfMessage(messages[lastIdx]))) {
+      await pool.refreshAllUsage().catch(() => {});
+      messages[lastIdx] = appendText(messages[lastIdx], usageNote(usageText(usageReport(store, key))));
+      notes.push('usage attached');
+    }
     // response_format: ask for bare JSON (and strip fences afterwards)
     const rf = body.response_format;
     const jsonMode = rf?.type === 'json_object' || rf?.type === 'json_schema';

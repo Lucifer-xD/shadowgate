@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { Store, TokenRecord, ApiKeyRecord } from './store.js';
 import { Config } from './config.js';
 import { TokenPool } from './pool.js';
+import { accountUsage, usageReport } from './usage.js';
 import {
   generateApiKey,
   generateTotpSecret,
@@ -253,6 +254,7 @@ export function mountAdmin(app: Express, store: Store, cfg: Config, pool: TokenP
       status: t.status,
       email: t.email ? t.email.replace(/^(.).*(@.*)$/, '$1***$2') : undefined,
       plan: t.plan,
+      usage: accountUsage(t),
     }));
     const keyNames = new Map(store.keys.map((k) => [k.id, k.name]));
     const byKey = new Map<string, number>();
@@ -375,6 +377,7 @@ export function mountAdmin(app: Express, store: Store, cfg: Config, pool: TokenP
         defaultModel: t.defaultModel,
         lastUsed: t.lastUsed,
         lastError: t.lastError,
+        usage: accountUsage(t),
         createdAt: t.createdAt,
       })),
     });
@@ -406,6 +409,12 @@ export function mountAdmin(app: Express, store: Store, cfg: Config, pool: TokenP
     store.flush();
     audit(store, cfg, req, 'token_update', t.label);
     res.json({ ok: true });
+  });
+
+  // live usage for every session (served from a 2-minute cache, so reloading the page stays gentle)
+  app.get('/api/admin/usage', auth, async (_req, res) => {
+    await pool.refreshAllUsage().catch(() => {});
+    res.json(usageReport(store));
   });
 
   app.post('/api/admin/tokens/:id/verify', auth, async (req, res) => {

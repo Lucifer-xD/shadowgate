@@ -31,6 +31,9 @@ export interface TokenRecord {
   /** model catalog reported by chatgpt.com for this account (refreshed on verify) */
   models?: Array<{ slug: string; title: string; reasoning: string; efforts: string[]; maxTokens?: number; workMode?: boolean }>;
   defaultModel?: string;
+  /** last usage-limit snapshot from chatgpt.com (5-hour + weekly windows, credits) */
+  usage?: import('./chatgpt/client.js').UsageSnapshot;
+  usageError?: string;
   lastUsed?: string;
   lastError?: string;
   createdAt: string;

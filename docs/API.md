@@ -71,6 +71,25 @@ The list is discovered from chatgpt.com per session (`/backend-api/models`) and 
 
 Resolution: an exact slug passes through (dots/dashes interchangeable); `auto`/`gpt-4o`/`gpt-5`/unknown → account default; `*thinking*`, `o1`/`o3`/`o4` or `reasoning_effort: high` → newest reasoning model of the requested generation; `*pro*` → Pro; `*mini*`/`*nano*`/`gpt-3.5` → mini; `*instant*` → instant; `astra`/`luna`/`terra`/`sol`/`gpt-6` → newest model with that codename. Work-mode models (`-wm`, flagged `work_mode: true`) are requested inside a work-mode conversation automatically. The response `model` field and the `x-shadowgate-model` header report what actually answered. A model your plan cannot use returns `429` with the upstream message.
 
+## GET /v1/usage
+
+The ChatGPT account limits behind the pool (the numbers on chatgpt.com → Settings → Usage) plus the calling key's own gateway usage. `?format=text` returns the same as a short plain-text summary.
+
+```json
+{"object":"usage","generated_at":"…","accounts":[{"id":"…","label":"Main Account","status":"healthy","plan":"k12",
+  "allowed":true,"limit_reached":false,
+  "five_hour":{"used_percent":0,"remaining_percent":100,"window_seconds":18000,"resets_at":"…","resets_in_seconds":18000},
+  "weekly":{"used_percent":31,"remaining_percent":69,"window_seconds":604800,"resets_at":"…","resets_in_seconds":275414},
+  "credits":{"hasCredits":false,"unlimited":false,"overageLimitReached":false,"balance":0},
+  "models":{"gpt-6-astra":{"available":true}},"fetched_at":"…"}],
+ "key":{"name":"opencode","requests_5h":3,"requests_24h":10,"requests_total":99,"rpm_limit":120,"rpd_limit":20000,"remaining_today":19990},
+ "note":"…"}
+```
+
+Source: `GET https://chatgpt.com/backend-api/wham/usage` per session, cached two minutes, also refreshed by the ten-minute health check. Work-mode (`-wm`) models spend these limits; the chat lane does not.
+
+**Usage questions in chat.** When the latest user message asks about usage or limits (English or Arabic; coding phrases such as "usage of this function" are ignored), the gateway appends a `[ShadowGate usage: …]` note with the live summary to that message, so the model answers from real data in any client. The note is stripped from continuation keys, so it never forces a full resend. The request log notes `usage attached`.
+
 ## Errors
 
 OpenAI-shaped: `{"error": {"message", "type", "param": null, "code": null}}`.
@@ -89,4 +108,4 @@ Rate limits: per key, sliding windows (default 120/min, 20 000/day). `GET /v1/mo
 
 ## Admin API
 
-`/api/admin/*` — cookie session (`sg_admin`, HttpOnly, SameSite=Strict) + `x-csrf-token` header on every non-GET request. The console is the intended client; see `src/admin.ts` for the surface: `login`, `logout`, `session`, `stats`, `keys` (CRUD), `tokens` (CRUD + `/:id/verify`), `logs`, `audit`, `settings`, `password`, `totp/setup|enable|disable`, `sessions/revoke`.
+`/api/admin/*` — cookie session (`sg_admin`, HttpOnly, SameSite=Strict) + `x-csrf-token` header on every non-GET request. The console is the intended client; see `src/admin.ts` for the surface: `login`, `logout`, `session`, `stats`, `usage`, `keys` (CRUD), `tokens` (CRUD + `/:id/verify`), `logs`, `audit`, `settings`, `password`, `totp/setup|enable|disable`, `sessions/revoke`.

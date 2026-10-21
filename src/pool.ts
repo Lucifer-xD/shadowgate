@@ -9,6 +9,8 @@ const HEALTH_INTERVAL_MS = 10 * 60 * 1000;
 const HEALTH_FIRST_TICK_MS = 8 * 1000;
 const RECENT_VERIFY_MS = 60 * 1000; // skip tokens verified within the last minute
 const EXPIRED_RETRY_MS = 60 * 60 * 1000; // re-check expired tokens hourly (sessions get revived)
+/** usage snapshots younger than this are served from cache — asking twice never costs a second call */
+export const USAGE_FRESH_MS = 2 * 60 * 1000;
 
 const DEFAULT_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -19,6 +21,7 @@ export class TokenPool {
   private healthTimer: NodeJS.Timeout | null = null;
   private firstTick: NodeJS.Timeout | null = null;
   private stopped = false;
+  private usageInflight = new Map<string, Promise<cg.UsageSnapshot | undefined>>();
 
   constructor(
     private store: Store,
@@ -265,6 +268,7 @@ export class TokenPool {
       } catch (err) {
         console.warn(`[pool] model catalog for ${t.label} failed:`, (err as Error).message);
       }
+      await this.refreshUsage(t, USAGE_FRESH_MS, creds);
       t.status = 'healthy';
       t.coolUntil = undefined;
       t.failCount = 0;
@@ -287,6 +291,37 @@ export class TokenPool {
       this.store.flush();
       return { ok: false, detail: t.lastError };
     }
+  }
+
+  /**
+   * Refresh one session's usage snapshot unless the cached one is younger than maxAgeMs.
+   * Never throws: a failure keeps the previous snapshot and records usageError.
+   */
+  async refreshUsage(t: TokenRecord, maxAgeMs = USAGE_FRESH_MS, creds?: PoolCreds): Promise<cg.UsageSnapshot | undefined> {
+    const age = t.usage ? Date.now() - Date.parse(t.usage.fetchedAt) : Infinity;
+    if (age < maxAgeMs) return t.usage;
+    if (t.status === 'expired') return t.usage;
+    const running = this.usageInflight.get(t.id);
+    if (running) return running;
+    const job = (async () => {
+      try {
+        t.usage = await cg.fetchUsage(creds ?? (await this.ensureAccess(t)));
+        t.usageError = undefined;
+      } catch (err) {
+        t.usageError = (err instanceof Error ? err.message : String(err)).slice(0, 200);
+      }
+      this.store.flush();
+      return t.usage;
+    })().finally(() => this.usageInflight.delete(t.id));
+    this.usageInflight.set(t.id, job);
+    return job;
+  }
+
+  /** Fresh-enough usage for every session that can serve (one light GET per stale session). */
+  async refreshAllUsage(maxAgeMs = USAGE_FRESH_MS): Promise<TokenRecord[]> {
+    const live = this.store.tokens.filter((t) => t.status !== 'expired');
+    await Promise.all(live.map((t) => this.refreshUsage(t, maxAgeMs)));
+    return this.store.tokens;
   }
 
   startHealthLoop(): void {
