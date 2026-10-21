@@ -9,7 +9,7 @@ import { runCompletion } from './engine.js';
 import { ChatStore, recordApiExchange } from './chats.js';
 import { findContinuation } from './continuation.js';
 import { summarizeHistory } from './summarize.js';
-import { NUDGE_EMPTY_MESSAGE, NUDGE_MESSAGE, ToolCallStream, callKey, extractToolCalls, injectToolPreamble, looksLikeShortAnnouncement, looksLikeUnfulfilledIntent, normalizeToolChoice, normalizeTools, toolPreamble, transformMessagesForTools, type ToolCall } from './tools.js';
+import { NUDGE_EMPTY_MESSAGE, NUDGE_MESSAGE, ToolCallStream, admitsPartialResult, callKey, cappedHint, extractToolCalls, latestToolText, nudgeCappedMessage, injectToolPreamble, looksLikeShortAnnouncement, looksLikeUnfulfilledIntent, normalizeToolChoice, normalizeTools, toolPreamble, transformMessagesForTools, type ToolCall } from './tools.js';
 import * as cg from './chatgpt/client.js';
 import { lastUserAsksAboutUsage, usageNote, usageReport, usageText } from './usage.js';
 
@@ -563,23 +563,27 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     const midLoop = (body.messages as any[]).at(-1)?.role === 'tool';
     const shortMidLoop = midLoop && looksLikeShortAnnouncement(visibleText);
     const intent = looksLikeUnfulfilledIntent(visibleText);
+    // the tool paged its output ("Use offset=1547 to continue.") and the reply stops at that page
+    const capped = midLoop ? cappedHint(latestToolText(body.messages as any[])) : undefined;
+    const cappedStop = !!capped && admitsPartialResult(visibleText);
     // every call the conversation has already executed — a nudge must never replay one of them
     const priorCalls = new Set<string>();
     for (const m of body.messages as any[]) {
       if (m?.role === 'assistant' && Array.isArray(m.tool_calls)) for (const c of m.tool_calls) priorCalls.add(callKey(c?.function?.name ?? '', c?.function?.arguments));
     }
     const repeatsPriorCall = () => calls.length > 0 && calls.every((c) => priorCalls.has(callKey(c.name, c.arguments)));
-    if (toolMode && result.ok && !calls.length && !clientAbort.signal.aborted && (intent || shortMidLoop)) {
+    if (toolMode && result.ok && !calls.length && !clientAbort.signal.aborted && (intent || shortMidLoop || cappedStop)) {
       // "I need to check your PC." with no block → ask once for the block itself
-      console.warn(`[gateway] tool mode: block-less reply (${intent ? 'announcement' : 'short mid-loop'}) — nudging once`);
-      notes.push(`nudged (${intent ? 'announcement' : 'short mid-loop'})`);
+      const why = cappedStop ? 'capped output' : intent ? 'announcement' : 'short mid-loop';
+      console.warn(`[gateway] tool mode: block-less reply (${why}) — nudging once`);
+      notes.push(`nudged (${why})`);
       announced = visibleText;
       const firstUnsent = unsent; // held-back lead text of the first run (nothing was written yet)
       const emptyTurn = announced.trim().startsWith('[shadowgate:');
       const firstResult = result;
       toolStream = toolMode ? new ToolCallStream() : null;
       holdStream = true;
-      result = await runOnce([...messages, { role: 'assistant', content: emptyTurn ? '' : result.text }, { role: 'user', content: emptyTurn ? NUDGE_EMPTY_MESSAGE : NUDGE_MESSAGE }]);
+      result = await runOnce([...messages, { role: 'assistant', content: emptyTurn ? '' : result.text }, { role: 'user', content: emptyTurn ? NUDGE_EMPTY_MESSAGE : cappedStop && capped ? nudgeCappedMessage(capped) : NUDGE_MESSAGE }]);
       holdStream = false;
       parseTools();
       if (repeatsPriorCall()) {
@@ -590,8 +594,8 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
         result = firstResult;
         visibleText = announced;
         unsent = firstUnsent;
-      } else if (!calls.length && !intent) {
-        // it really was the final answer — keep the original, drop the restatement
+      } else if (!calls.length && (!intent || cappedStop)) {
+        // it really was the final answer (or it would not page on) — keep the original, drop the restatement
         result = firstResult;
         visibleText = announced;
         unsent = firstUnsent;

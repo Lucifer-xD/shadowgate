@@ -122,9 +122,15 @@ export function injectToolPreamble(messages: OpenAIMessage[], preamble: string, 
   const last = out.length - 1;
   if (last > i && out[last].role === 'user') {
     const names = tools.map((t) => t.name).join(', ');
+    const body = textOfContent(out[last].content);
+    // a result the tool itself paged ("Use offset=1547 to continue.") must be followed, not reported as a wall
+    const capped = body.startsWith('<tool_response') ? cappedHint(body) : undefined;
+    const cappedNote = capped
+      ? ` One result above was cut short by the tool itself ("${capped.line}"). That is a page limit, not a failure: if the task needs the rest, request the next part (${capped.next}) and keep going until you have it, then answer. Never answer from a partial result as if it were the whole.`
+      : '';
     out[last] = {
       role: 'user',
-      content: `${textOfContent(out[last].content)}\n\n[Harness reminder: you act on the user's machine ONLY by replying with <tool_call> blocks (actions: ${names || 'see above'}). Your own sandbox or browser is not their machine. The protocol is always available; never say it is not. If an action failed, fix it and request it again. When nothing more is needed, answer normally.]`,
+      content: `${body}\n\n[Harness reminder: you act on the user's machine ONLY by replying with <tool_call> blocks (actions: ${names || 'see above'}). Your own sandbox or browser is not their machine. The protocol is always available; never say it is not. If an action failed, fix it and request it again.${cappedNote} When nothing more is needed, answer normally.]`,
     };
   }
   return out;
@@ -209,6 +215,33 @@ export function callKey(name: string, args: unknown): string {
   }
   return `${name}:${canon}`;
 }
+
+/**
+ * A tool result the tool cut short on purpose, with its own way to fetch the
+ * rest, e.g. ZadLoop's read tool: "(Output capped. Showing lines 1-1546. Use
+ * offset=1547 to continue.)". Returns that line and the continuation argument.
+ */
+const CONTINUE_HINT = /^.*\b[Uu]se\s+([a-z_]+\s*=\s*\d+)\s+to continue\b.*$/m;
+export function cappedHint(text: string): { line: string; next: string } | undefined {
+  const m = CONTINUE_HINT.exec(text);
+  if (!m) return undefined;
+  return { line: m[0].trim().replace(/^\(|\)$/g, '').slice(0, 200), next: m[1].replace(/\s+/g, '') };
+}
+
+/** The latest batch of tool results (the trailing tool messages) as one text. */
+export function latestToolText(messages: Array<{ role: string; content: unknown }>): string {
+  const parts: string[] = [];
+  for (let k = messages.length - 1; k >= 0 && messages[k]?.role === 'tool'; k--) parts.unshift(textOfContent(messages[k].content as OpenAIMessage['content']));
+  return parts.join('\n');
+}
+
+/** A reply that admits it only has part of the output ("the read was capped", "not the entire file"). */
+export function admitsPartialResult(text: string): boolean {
+  return /\b(capped|truncat\w*|cut (?:off|short)|partial(?:ly)?|not (?:the )?(?:entire|whole|full|complete)|only (?:read|got|saw|see|verify|verified|returned)|rest of (?:the )?(?:file|output|content|results?)|remaining (?:lines|part|content)|could(?:n['’]t| not) (?:read|see|get|verify) (?:the )?(?:rest|remaining|whole|entire|full))\b/i.test(text);
+}
+
+export const nudgeCappedMessage = (hint: { line: string; next: string }) =>
+  `The tool's output was cut short by a page limit, and it told you how to get the rest: "${hint.line}". That is not a failure and not a reason to stop. Reply now with ONLY the <tool_call> block for the next part (same action, ${hint.next}), and keep requesting parts until you have everything the task needs; then give the complete final answer.`;
 
 export const NUDGE_EMPTY_MESSAGE = 'Your last turn produced no reply text and no <tool_call> block — nothing reached the user. If you used a built-in sandbox, code interpreter, canvas or image tool, it does not exist here and its output was discarded. Do the step through the harness: reply now with ONLY the <tool_call> block(s) for the next action, in the exact protocol format. If the task is finished, give the complete final answer in plain text.';
 export const NUDGE_MESSAGE = 'Your last reply contained no <tool_call> block, so nothing happened on the user\'s machine. If the task is not finished, reply now with ONLY the <tool_call> block(s) for the next action, in the exact protocol format. If the task is finished, give the complete final answer now.';

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extractToolCalls, lenientJson, looksLikeUnfulfilledIntent, looksLikeShortAnnouncement, callKey, ToolCallStream, normalizeTools, toolPreamble, injectToolPreamble } from '../dist/tools.js';
+import { extractToolCalls, lenientJson, looksLikeUnfulfilledIntent, looksLikeShortAnnouncement, callKey, ToolCallStream, normalizeTools, toolPreamble, injectToolPreamble, transformMessagesForTools, cappedHint, latestToolText, admitsPartialResult, nudgeCappedMessage } from '../dist/tools.js';
 
 const block = (name, args) => `<tool_call>${JSON.stringify({ name, arguments: args })}</tool_call>`;
 
@@ -99,4 +99,47 @@ test('injectToolPreamble: briefing goes into the first user message, reminder on
   assert.match(String(msgs[1].content), /first/);
   assert.match(String(msgs[3].content), /Harness reminder/);
   assert.match(String(msgs[1].content), /no python sandbox|NO Python sandbox/i);
+});
+
+// ZadLoop's read tool pages at 50 KiB and says how to go on; the model must page, not stop
+const ZADLOOP_FOOTER = '(Output capped. Showing lines 1-1546. Use offset=1547 to continue.)';
+
+test('cappedHint: reads the continuation the tool offers, ignores ordinary output', () => {
+  assert.deepEqual(cappedHint(`1: {\n2: ...\n${ZADLOOP_FOOTER}`), { line: 'Output capped. Showing lines 1-1546. Use offset=1547 to continue.', next: 'offset=1547' });
+  assert.equal(cappedHint('(Showing lines 1-2000 of 23778. Use offset=2001 to continue.)')?.next, 'offset=2001');
+  assert.equal(cappedHint('1: hello\n2: world'), undefined);
+  assert.equal(cappedHint('Use the read tool to continue.'), undefined);
+});
+
+test('latestToolText: only the trailing tool results count', () => {
+  const msgs = [
+    { role: 'tool', content: `old ${ZADLOOP_FOOTER}` },
+    { role: 'assistant', content: 'done' },
+    { role: 'user', content: 'next' },
+  ];
+  assert.equal(latestToolText(msgs), '');
+  assert.match(latestToolText([...msgs, { role: 'assistant', content: null, tool_calls: [] }, { role: 'tool', content: 'a' }, { role: 'tool', content: ZADLOOP_FOOTER }]), /offset=1547/);
+});
+
+test('admitsPartialResult: the replies that stopped at the cap, not complete answers', () => {
+  assert.ok(admitsPartialResult('I read 1,546 lines from C:\Users\Lucifer\Desktop\openapi.json. The read was capped at line 1,546, so the entire file was not read.'));
+  assert.ok(admitsPartialResult('The file-reading tool capped the returned content at 1,546 lines, even though I requested up to 2,000. So I could only verify/read lines 1–1,546, not the rest of the file.'));
+  assert.ok(!admitsPartialResult('The file has 23,778 lines; I read all of them in 22 parts.'));
+  assert.ok(!admitsPartialResult('Done — the config is updated.'));
+});
+
+test('reminder names the continuation when the latest tool result was capped', () => {
+  const tools = normalizeTools([{ type: 'function', function: { name: 'read', description: 'read', parameters: { type: 'object', properties: { path: { type: 'string' }, offset: { type: 'number' } } } } }]);
+  const wire = transformMessagesForTools([
+    { role: 'user', content: 'read openapi.json and tell me how many lines you read' },
+    { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'read', arguments: '{"path":"openapi.json"}' } }] },
+    { role: 'tool', tool_call_id: 'c1', content: `1: {\n${ZADLOOP_FOOTER}` },
+  ]);
+  const msgs = injectToolPreamble(wire, toolPreamble(tools, 'auto'), tools);
+  const last = String(msgs.at(-1).content);
+  assert.match(last, /Harness reminder/);
+  assert.match(last, /cut short by the tool itself/);
+  assert.match(last, /request the next part \(offset=1547\)/);
+  assert.match(last, /\]$/, 'the reminder stays one bracket so continuation hashing strips it');
+  assert.match(nudgeCappedMessage(cappedHint(ZADLOOP_FOOTER)), /offset=1547/);
 });
