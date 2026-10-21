@@ -321,7 +321,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
     res.setHeader('access-control-allow-headers', 'authorization, content-type, openai-organization, openai-project, x-stainless-arch, x-stainless-lang, x-stainless-os, x-stainless-package-version, x-stainless-runtime, x-stainless-runtime-version, x-stainless-retry-count, x-stainless-timeout');
-    res.setHeader('access-control-expose-headers', 'x-shadowgate-model, retry-after');
+    res.setHeader('access-control-expose-headers', 'x-shadowgate-model, x-shadowgate-served, retry-after');
     res.setHeader('access-control-max-age', '600');
     if (req.method === 'OPTIONS') {
       res.status(204).end();
@@ -486,6 +486,13 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
         // the client sees the clean name ("gpt-6-astra"); the header keeps the exact upstream slug
         servedModel = cleanName(slug);
         if (!res.headersSent) res.setHeader('x-shadowgate-model', slug + (effort ? `;thinking_effort=${effort}` : ''));
+      },
+      onServed: (s) => {
+        // the lane that really answered: "chat" (the chat lane) or "work" (the real work-mode family)
+        const value = [s.experience && `experience=${s.experience}`, s.harness && `harness=${s.harness}`, s.slug && `slug=${s.slug}`].filter(Boolean).join('; ');
+        if (value && !res.headersSent) res.setHeader('x-shadowgate-served', value);
+        const note = `served ${s.experience ?? '?'}/${s.harness ?? '?'}`;
+        if (!notes.includes(note)) notes.push(note);
       },
       onStart: () => {
         if (stream && !streamStarted) {

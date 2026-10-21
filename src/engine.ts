@@ -26,6 +26,8 @@ export interface CompletionOptions {
   onDelta?: (text: string) => void | 'stop' | 'length';
   /** incremental thought summaries (reasoning models) */
   onReasoning?: (text: string) => void;
+  /** what actually served the turn (experience / harness / slug, from the backend's metadata) */
+  onServed?: (served: { experience?: string; harness?: string; slug?: string }) => void;
   /** a short note about something the engine did (failover, retry) — for the request log */
   onNote?: (note: string) => void;
   /** fired before onStart when the request continues an existing backend conversation (n = messages sent) */
@@ -152,6 +154,7 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
             streamError = describeUpstreamError(ev.upstreamError);
             break;
           }
+          if (ev.served) opts.onServed?.(ev.served);
           if (ev.modelSlug && ev.modelSlug !== servedModel) {
             servedModel = ev.modelSlug;
             opts.onModel?.(servedModel, servedEffort);

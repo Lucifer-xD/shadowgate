@@ -6,20 +6,20 @@
   <title>ShadowGate — API reference</title>
   <meta name="description" content="ShadowGate API reference: OpenAI-compatible endpoints, streaming, keys, rate limits and model mapping.">
   <meta name="theme-color" content="#09080a">
-  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.15.2">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.15.3">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/assets/base.css?v=1.15.2">
-  <link rel="stylesheet" href="/assets/landing.css?v=1.15.2">
-  <link rel="stylesheet" href="/assets/docs.css?v=1.15.2">
+  <link rel="stylesheet" href="/assets/base.css?v=1.15.3">
+  <link rel="stylesheet" href="/assets/landing.css?v=1.15.3">
+  <link rel="stylesheet" href="/assets/docs.css?v=1.15.3">
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
   <div class="bg-rays" aria-hidden="true"></div>
 
   <header class="nav" id="nav">
-    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.15.2" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
+    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.15.3" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
     <nav class="nav-links" aria-label="Site">
       <a href="/">Home</a><a href="/docs" class="current">Docs</a><a href="/healthz">Health</a>
     </nav>
@@ -175,7 +175,7 @@ data: [DONE]</pre>
         </tbody>
       </table>
       <p><b>GPT-6 family — what is real, and what is unmetered.</b> The <b>real</b> GPT-6 models are the work-mode rows ending in <code>-wm</code> (<code>gpt-6-astra-wm</code>, <code>gpt-6.1-sol-wm</code>, <code>gpt-6-luna-wm</code>, <code>gpt-6-sol-wm</code>, the 5.6 codenames). They are served only inside a work-mode conversation, which ShadowGate opens automatically, and they spend the ChatGPT workspace's work credits. The <b>unmetered chat lane</b> is listed once, as <code>gpt-6</code> (“GPT-6 (chat lane, unmetered)”): chatgpt.com's chat endpoint answers <i>every</i> GPT-6-style name — <code>gpt-6-astra</code>, <code>gpt-6.1-sol</code>, even a made-up <code>gpt-9-zeus</code> — with one and the same configuration whose system prompt calls it “GPT-6” (measured on a live session: the Astra name and the made-up name gave identical answers; <code>gpt-5-6</code> calls itself “GPT-5.6 Sol”). So any GPT-6 name without <code>-wm</code> is sent there as <code>gpt-6</code>, and the reply's <code>model</code> says <code>gpt-6</code>, which is what actually answered. Real Astra in the unlimited chat lane is not something chatgpt.com offers; the only real Astra is <code>gpt-6-astra-wm</code>.</p>
-      <p>The <code>model</code> field in every response (and every stream chunk) is the slug the backend actually answered with, and the <code>x-shadowgate-model</code> response header shows the resolved slug plus effort. A model your plan cannot use returns <code>429</code> with the upstream message.</p>
+      <p>The <code>model</code> field in every response (and every stream chunk) is the slug the backend actually answered with, and the <code>x-shadowgate-model</code> response header shows the resolved slug plus effort. On non-streaming responses, <code>x-shadowgate-served</code> reports what really answered, from the backend's own metadata: <code>experience=chat</code> for the chat lane or <code>experience=work</code> for the work-mode GPT-6 family, plus the harness and slug. The backend echoes any model name in <code>model</code>, so this is the header to trust. A model your plan cannot use returns <code>429</code> with the upstream message.</p>
 
       <h2 id="usage"><span class="meth get">GET</span> /v1/usage</h2>
       <p>The usage limits of the ChatGPT accounts behind the gateway — the same numbers chatgpt.com shows under <b>Settings → Usage</b> — plus what the calling API key has spent on the gateway. Each account reports a <b>5-hour</b> window and a <b>weekly</b> window, each with the percentage used, the percentage left and when it resets, its credits and per-model availability. Work-mode models (<code>-wm</code>) spend these limits; the chat lane (<code>gpt-6</code>, <code>gpt-5-6</code> and the other non <code>-wm</code> models) is not counted against them.</p>
@@ -287,12 +287,12 @@ curl "https://ai.shadowvpn.live/v1/usage?format=text" -H "Authorization: Bearer 
 
   <footer class="footer">
     <div class="foot-row">
-      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.15.2" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.15.3" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
       <nav class="foot-links mono"><a href="/">home</a><a href="/admin">console</a><a href="/healthz">health</a><a href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">github</a></nav>
       <div class="foot-note mono">built by <b>Lucifer</b></div>
     </div>
   </footer>
 
-  <script src="/assets/docs.js?v=1.15.2" defer></script>
+  <script src="/assets/docs.js?v=1.15.3" defer></script>
 </body>
 </html>

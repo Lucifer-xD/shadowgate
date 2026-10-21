@@ -583,6 +583,14 @@ export interface StreamEvent {
   assistantId?: string;
   /** slug the backend actually answered with (from message metadata) */
   modelSlug?: string;
+  /**
+   * What actually served the turn, from the backend's server_ste_metadata event:
+   * the experience ("chat" for the chat lane, "work" for the real work-mode
+   * family), the harness ("Harmony" for temporary chats, "Codex" for saved
+   * work-mode ones, which spend work credits) and the slug it ran. Unlike
+   * model_slug (which echoes whatever name was sent) this tells the lanes apart.
+   */
+  served?: { experience?: string; harness?: string; slug?: string };
   upstreamError?: unknown;
 }
 
@@ -786,6 +794,12 @@ export async function* parseChatGPTSSE(
     }
     if (typeof v.conversation_id === 'string' && !convId) convId = v.conversation_id;
     if (v.type === 'message_stream_complete') return;
+    if (v.type === 'server_ste_metadata' && v.metadata && typeof v.metadata === 'object') {
+      const md = v.metadata;
+      const str = (x: unknown) => (typeof x === 'string' && x ? x : undefined);
+      yield { served: { experience: str(md.product_experience) ?? str(md.requested_model_experience), harness: str(md.harness), slug: str(md.model_slug) } };
+      return;
+    }
 
     // delta-encoding frames: {"v": {message…}} | {"p":"/message/content/parts/0","o":"append","v":"…"} | {"o":"patch","v":[…]}
     if (v.message) {

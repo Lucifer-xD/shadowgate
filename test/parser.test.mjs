@@ -35,6 +35,19 @@ test('thinking reply: reasoning summaries arrive separately from the answer', as
   assert.equal(r.slug, 'gpt-6-astra-wm');
 });
 
+test('served lane: server_ste_metadata tells chat from work mode', async () => {
+  const served = async (name) => {
+    const { body, inputIds } = fixtureStream(name);
+    for await (const ev of parseChatGPTSSE(body, inputIds)) if (ev.served) return ev.served;
+    return null;
+  };
+  assert.deepEqual(await served('plain-reply'), { experience: 'chat', harness: 'Harmony', slug: 'gpt-5-6' });
+  const wm = await served('thinking-reply');
+  assert.equal(wm.experience, 'work');
+  assert.equal(wm.harness, 'Harmony');
+  assert.equal(wm.slug, 'gpt-6-astra-wm');
+});
+
 test('tool call reply: the protocol block survives the parser verbatim', async () => {
   const { body, inputIds } = fixtureStream('tool-call');
   const r = await collect(parseChatGPTSSE(body, inputIds));
