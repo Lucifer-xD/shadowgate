@@ -17,30 +17,30 @@ const catalog = () => withCleanWorkModels({
   ],
 });
 
-test('both lanes are listed: bare GPT-6 slugs (chat lane) and -wm work-mode slugs', () => {
+test('one honest chat-lane row; every GPT-6 name without -wm goes to it; -wm rows are the real family', () => {
   const cat = catalog();
-  const bare = cat.models.find((m) => m.slug === 'gpt-6-astra');
-  const wm = cat.models.find((m) => m.slug === 'gpt-6-astra-wm');
-  assert.ok(bare && bare.direct && !bare.workMode);
-  assert.ok(wm && wm.workMode);
-  assert.match(wm.title, /work mode/);
-  const r = resolveModel('gpt-6-astra', 'high', cat);
-  assert.equal(r.slug, 'gpt-6-astra');
-  assert.equal(r.workMode, undefined);
-  assert.equal(r.effort, 'extended');
+  const lane = cat.models.find((m) => m.slug === 'gpt-6');
+  assert.ok(lane && lane.direct && !lane.workMode);
+  assert.match(lane.title, /chat lane/);
+  assert.ok(!cat.models.some((m) => m.slug === 'gpt-6-astra'), 'no bare Astra row');
+  for (const name of ['gpt-6-astra', 'gpt-6.1-sol', 'gpt-6-luna', 'gpt-6-sol', 'astra', 'sol', 'luna', 'gpt-6']) {
+    const r = resolveModel(name, 'high', cat);
+    assert.equal(r.slug, 'gpt-6', name);
+    assert.equal(r.workMode, undefined, name);
+  }
   const w = resolveModel('gpt-6-astra-wm', 'high', cat);
   assert.equal(w.slug, 'gpt-6-astra-wm');
   assert.equal(w.workMode, true);
-  assert.ok(cat.models.some((m) => m.slug === 'gpt-6-luna' && m.direct));
-  assert.ok(!cat.models.some((m) => m.slug === 'gpt-6'), 'gpt-6 is not a real model name');
+  assert.equal(w.effort, 'extended');
+  assert.match(cat.models.find((m) => m.slug === 'gpt-6-astra-wm').title, /work mode/);
 });
 
 test('codename and bare-generation aliases', () => {
   const cat = catalog();
-  assert.equal(resolveModel('astra', undefined, cat).slug, 'gpt-6-astra');
-  assert.equal(resolveModel('sol', undefined, cat).slug, 'gpt-6.1-sol');
+  assert.equal(resolveModel('astra', undefined, cat).slug, 'gpt-6');
+  assert.equal(resolveModel('sol', undefined, cat).slug, 'gpt-6');
   assert.equal(resolveModel('terra', undefined, cat).slug, 'gpt-5.6-terra-wm');
-  assert.ok(/^gpt-6/.test(resolveModel('gpt-6', undefined, cat).slug), 'bare gpt-6 resolves to a GPT-6 family model');
+  assert.equal(resolveModel('gpt-6', undefined, cat).slug, 'gpt-6');
 });
 
 test('lane aliases stay on the listed plain models', () => {

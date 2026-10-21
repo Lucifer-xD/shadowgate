@@ -147,30 +147,21 @@ export interface ModelInfo {
 }
 
 /**
- * Two lanes reach the GPT-6 family, and both are listed:
+ * Two lanes answer GPT-6 names, and the listing says which is which:
  *
- *  - work-mode slugs ("gpt-6-astra-wm"), served inside a work-mode
- *    conversation (conversation_origin "tpp"): the backend reports
- *    requested_model_experience "work" and gives the model a container
- *    sandbox; continuing such a conversation requires it to be saved in the
- *    account's history.
- *  - the bare slugs ("gpt-6-astra", "gpt-6", "gpt-6-thinking" …), sent in an
- *    ordinary chat conversation: the backend accepts them, echoes the slug back
- *    and serves the chat lane (experience "instant" / "thinking"); these
- *    conversations continue inside temporary chats, so nothing is saved to the
- *    account. The backend echoes ANY slug this way, so the bare rows below are
- *    the ones that were asked for explicitly, with the lane they map to.
- *
- * The listing marks them `work_mode` and `direct` respectively; codename
- * aliases ("astra") prefer the bare slug.
+ *  - work-mode slugs ("gpt-6-astra-wm", "gpt-6.1-sol-wm", "gpt-6-luna-wm" …) are
+ *    the real GPT-6 family. They are served only inside a work-mode conversation
+ *    (conversation_origin "tpp") and spend the workspace's work credits.
+ *  - the unlimited chat lane answers EVERY GPT-6-style name — gpt-6-astra,
+ *    gpt-6-luna, gpt-6.1-sol, even made-up ones like gpt-9-zeus — with one and
+ *    the same generic configuration whose system prompt calls it "GPT-6"
+ *    (verified 2026-10-21 on the live session: gpt-6-astra and gpt-9-zeus gave
+ *    identical answers, gpt-5-6 said "GPT-5.6 Sol"). It is listed once, as
+ *    "gpt-6" (chat lane); any GPT-6 name without -wm is sent there as "gpt-6",
+ *    so replies are labelled with what actually answered.
  */
-// Only names that OpenAI's own Codex endpoint accepts for a ChatGPT account (it validates
-// names, unlike the chat endpoint): gpt-6-astra, gpt-6.1-sol, gpt-6-luna. Verified 2026-10-21;
-// gpt-6, gpt-6-thinking, gpt-6-astra-thinking, gpt-6-sol and gpt-6-pro are rejected there.
 export const DIRECT_MODELS: Array<{ slug: string; title: string; reasoning: string }> = [
-  { slug: 'gpt-6-astra', title: 'GPT-6 Astra', reasoning: 'auto' },
-  { slug: 'gpt-6-luna', title: 'GPT-6 Luna', reasoning: 'auto' },
-  { slug: 'gpt-6.1-sol', title: 'GPT-6.1 Sol', reasoning: 'auto' },
+  { slug: 'gpt-6', title: 'GPT-6 (chat lane, unmetered)', reasoning: 'auto' },
 ];
 
 export function withCleanWorkModels(cat: ModelCatalog): ModelCatalog {
@@ -361,6 +352,11 @@ export function resolveModel(requested: string | undefined, effortReq: string | 
 
   const exact = bySlug(key);
   if (exact) return finish(exact, exact.slug);
+
+  // GPT-6 names without -wm, and the bare codenames, all reach the same chat-lane model upstream:
+  // send them as "gpt-6" so the reply says what really answered (see DIRECT_MODELS)
+  const chatLane = models.find((m) => m.direct && m.slug === 'gpt-6');
+  if (chatLane && (/^gpt-6([-.]|$)/.test(key) && !/-wm$/.test(key) || /^(astra|luna|sol)$/.test(key))) return finish(chatLane, chatLane.slug);
 
   // codename aliases: "astra", "gpt-6-luna", "sol", "terra" → newest model whose title carries the word
   const word = key.match(/(astra|luna|terra|sol|nova|orion)/)?.[1];
