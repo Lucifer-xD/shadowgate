@@ -7,7 +7,7 @@ import { nowIso, sha256hex, uuid } from './util.js';
 import { countMessageTokens, countTokens } from './tokens.js';
 import { runCompletion } from './engine.js';
 import { ChatStore, recordApiExchange } from './chats.js';
-import { findContinuation } from './continuation.js';
+import { continuesInPlace, findContinuation } from './continuation.js';
 import { summarizeHistory } from './summarize.js';
 import { NUDGE_EMPTY_MESSAGE, NUDGE_MESSAGE, ToolCallStream, admitsPartialResult, callKey, cappedHint, extractToolCalls, latestToolText, nudgeCappedMessage, injectToolPreamble, looksLikeShortAnnouncement, looksLikeUnfulfilledIntent, normalizeToolChoice, normalizeTools, toolPreamble, transformMessagesForTools, type ToolCall } from './tools.js';
 import * as cg from './chatgpt/client.js';
@@ -412,8 +412,10 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       typeof body.reasoning?.effort === 'string' ? body.reasoning.effort :
       typeof body.thinking_effort === 'string' ? body.thinking_effort : undefined;
     let totalChars = textSize(messages);
-    // a continuation sends only the new messages upstream, so only those must fit the per-request budget
-    const hit = (store.settings.continuation ?? 'temp') !== 'off' ? findContinuation(messages, model, effortReq) : null;
+    // a continuation sends only the new messages upstream, so only those must fit the per-request budget —
+    // but a temporary work-mode chat is never continued (the engine resends everything), so there the whole history counts
+    const found = (store.settings.continuation ?? 'temp') !== 'off' ? findContinuation(messages, model, effortReq) : null;
+    const hit = found && continuesInPlace(found.entry) ? found : null;
     const upstreamChars = hit ? textSize(hit.newMessages) : totalChars;
     if (upstreamChars > MAX_CHARS) {
       // Harnesses that never compact would die here with a 413. Compact for them:
@@ -542,6 +544,22 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     });
 
     let result = await runOnce(messages);
+    // ChatGPT's own size limit varies (~400–590k characters per request); if it still says "too long",
+    // condense to 70% and try once more before the client has seen anything
+    if (!result.ok && !result.aborted && !streamStarted && /message_length_exceeds_limit|messages you submitted were too long/i.test(result.error ?? '')) {
+      const before = textSize(messages);
+      const target = Math.floor(Math.min(before, MAX_CHARS) * 0.7);
+      let smaller = (await summarizeHistory(pool, store, messages, target).catch(() => null))?.messages ?? messages;
+      if (textSize(smaller) > target) smaller = compactHistory(smaller, target);
+      if (textSize(smaller) < before) {
+        messages = smaller;
+        totalChars = textSize(messages);
+        notes.push(`ChatGPT said too long → compacted ${Math.round(before / 1000)}k→${Math.round(totalChars / 1000)}k, retried`);
+        console.warn(`[gateway] upstream 413 (too long) at ${before} chars — compacted to ${totalChars} and retrying once`);
+        if (!res.headersSent) res.setHeader('x-shadowgate-compacted', `${before}->${totalChars}`);
+        result = await runOnce(messages);
+      }
+    }
     // did the model ask for tools?
     let calls: ToolCall[] = [];
     let visibleText = result.text;

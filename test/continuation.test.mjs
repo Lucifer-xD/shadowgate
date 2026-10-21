@@ -1,6 +1,6 @@
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { findContinuation, rememberContinuation, forgetConversation, sweepExpired, historyKey, _resetContinuation } from '../dist/continuation.js';
+import { findContinuation, rememberContinuation, forgetConversation, sweepExpired, historyKey, continuesInPlace, _resetContinuation } from '../dist/continuation.js';
 
 const base = () => [
   { role: 'system', content: 'sys' },
@@ -72,4 +72,12 @@ test('forgetConversation and sweepExpired', () => {
 test('historyKey is stable and order-sensitive', () => {
   assert.equal(historyKey(base(), 'm', 'x'), historyKey(base(), 'm', 'x'));
   assert.notEqual(historyKey(base(), 'm', 'x'), historyKey([...base()].reverse(), 'm', 'x'));
+});
+
+test('continuesInPlace: temporary work-mode chats are resent whole, so their full history counts against the budget', () => {
+  const entry = (model, persisted) => ({ conversationId: 'c', parentId: 'p', tokenId: 't', model, persisted, createdAt: 0, lastUsed: 0, turns: 1 });
+  assert.equal(continuesInPlace(entry('gpt-5-6', false)), true);
+  assert.equal(continuesInPlace(entry('gpt-6', false)), true);
+  assert.equal(continuesInPlace(entry('gpt-6-astra-wm', false)), false);
+  assert.equal(continuesInPlace(entry('gpt-6-astra-wm', true)), true);
 });

@@ -26,6 +26,16 @@ export interface ContinuationEntry {
   turns: number;
 }
 
+/**
+ * Whether the backend will really continue this conversation in place. A
+ * work-mode ("-wm") conversation continues only when it is saved; inside a
+ * temporary chat the backend silently drops it to gpt-5-6, so the engine
+ * resends the whole history instead (see engine.ts).
+ */
+export function continuesInPlace(entry: ContinuationEntry): boolean {
+  return entry.persisted || !/-wm$/i.test(entry.model);
+}
+
 export interface ContinuationHit {
   entry: ContinuationEntry;
   /** the messages the backend has not seen yet */
