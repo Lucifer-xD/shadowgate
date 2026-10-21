@@ -1,7 +1,21 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { parseUsage } from '../dist/chatgpt/client.js';
-import { asksAboutUsage, accountUsage, humanDuration, usageNote, usageText } from '../dist/usage.js';
+import { asksAboutUsage, accountUsage, humanDuration, lastUserAsksAboutUsage, usageNote, usageText } from '../dist/usage.js';
+
+test('agent loop: the last real user message decides, not tool output', () => {
+  const loop = [
+    { role: 'system', content: 'You are an agent.' },
+    { role: 'user', content: 'List the files in my project, count them, then tell me my current usage.' },
+    { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'list', arguments: '{}' } }] },
+    { role: 'tool', tool_call_id: 'c1', content: 'a.ts\nb.ts' },
+  ];
+  assert.equal(lastUserAsksAboutUsage(loop), true);
+  const other = [...loop, { role: 'assistant', content: 'done' }, { role: 'user', content: 'now add a README' }];
+  assert.equal(lastUserAsksAboutUsage(other), false);
+  // tool output that mentions usage never triggers it by itself
+  assert.equal(lastUserAsksAboutUsage([{ role: 'user', content: 'fix the bug' }, { role: 'tool', content: 'what is my usage?' }]), false);
+});
 import { historyKey } from '../dist/continuation.js';
 
 // shape recorded from GET https://chatgpt.com/backend-api/wham/usage (ids removed)

@@ -11,7 +11,7 @@ import { findContinuation } from './continuation.js';
 import { summarizeHistory } from './summarize.js';
 import { NUDGE_EMPTY_MESSAGE, NUDGE_MESSAGE, ToolCallStream, callKey, extractToolCalls, injectToolPreamble, looksLikeShortAnnouncement, looksLikeUnfulfilledIntent, normalizeToolChoice, normalizeTools, toolPreamble, transformMessagesForTools, type ToolCall } from './tools.js';
 import * as cg from './chatgpt/client.js';
-import { asksAboutUsage, usageNote, usageReport, usageText } from './usage.js';
+import { lastUserAsksAboutUsage, usageNote, usageReport, usageText } from './usage.js';
 
 // Measured 2026-10: chatgpt.com accepts ~400k characters per request in total (~120k tokens)
 // and ~330k per single message; the latter is handled by splitting (client.ts).
@@ -233,8 +233,6 @@ function appendText(m: cg.OpenAIMessage, note: string): cg.OpenAIMessage {
   return { ...m, content: parts };
 }
 
-const textOfMessage = (m: cg.OpenAIMessage): string =>
-  typeof m.content === 'string' ? m.content : Array.isArray(m.content) ? m.content.filter((p) => p.type === 'text').map((p) => p.text ?? '').join('\n') : '';
 
 function withText(m: cg.OpenAIMessage, text: string): cg.OpenAIMessage {
   if (!Array.isArray(m.content)) return { ...m, content: text };
@@ -384,8 +382,10 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     }
     if (toolMode) messages = injectToolPreamble(messages, toolPreamble(tools, toolChoice), tools);
     // "what's my usage?" from any client: attach the live numbers so the model answers from real data
+    // The question is read from the client's last real user message, so in an agent loop
+    // ("do X, then tell me my usage") every later tool round gets fresh numbers too.
     const lastIdx = messages.length - 1;
-    if (lastIdx >= 0 && messages[lastIdx].role === 'user' && asksAboutUsage(textOfMessage(messages[lastIdx]))) {
+    if (lastIdx >= 0 && messages[lastIdx].role === 'user' && lastUserAsksAboutUsage(body.messages as cg.OpenAIMessage[])) {
       await pool.refreshAllUsage().catch(() => {});
       messages[lastIdx] = appendText(messages[lastIdx], usageNote(usageText(usageReport(store, key))));
       notes.push('usage attached');

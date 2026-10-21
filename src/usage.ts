@@ -164,7 +164,7 @@ export function usageText(r: UsageReport): string {
 
 /** Wording of the note appended to the user's message (stripped again from continuation keys). */
 export function usageNote(text: string): string {
-  return `\n\n[ShadowGate usage: the gateway attached this live data because the user asked about usage or limits. Answer from it directly and briefly; do not say you cannot see their usage.\n${text}]`;
+  return `\n\n[ShadowGate usage: the gateway attached this live data because the user asked about usage or limits. Use these numbers when you report usage, and never say you cannot see it. If the user asked for usage after a task, finish the task first, then report usage at the end.\n${text}]`;
 }
 
 const ASK_USAGE: RegExp[] = [
@@ -176,6 +176,18 @@ const ASK_USAGE: RegExp[] = [
   /\bwhen (does|do|will) (my|the) (limit|limits|usage|quota)s? reset\b/i,
   /(استخدامي|الاستخدام|استهلاكي|الاستهلاك|الليميت|ليميت|الكوتا|الرصيد|الحد المسموح|الباقي من)/,
 ];
+
+/** True when the conversation's latest real user message (not a tool result) asks about usage. */
+export function lastUserAsksAboutUsage(messages: Array<{ role: string; content?: unknown }>): boolean {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    if (m.role !== 'user') continue;
+    const c = m.content;
+    const text = typeof c === 'string' ? c : Array.isArray(c) ? c.filter((p: any) => p?.type === 'text').map((p: any) => String(p.text ?? '')).join('\n') : '';
+    return asksAboutUsage(text);
+  }
+  return false;
+}
 
 /** True when a user message asks about their usage or limits. */
 export function asksAboutUsage(text: string): boolean {
