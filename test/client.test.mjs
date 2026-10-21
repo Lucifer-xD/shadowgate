@@ -31,7 +31,8 @@ test('both lanes are listed: bare GPT-6 slugs (chat lane) and -wm work-mode slug
   const w = resolveModel('gpt-6-astra-wm', 'high', cat);
   assert.equal(w.slug, 'gpt-6-astra-wm');
   assert.equal(w.workMode, true);
-  assert.ok(cat.models.some((m) => m.slug === 'gpt-6' && m.direct));
+  assert.ok(cat.models.some((m) => m.slug === 'gpt-6-luna' && m.direct));
+  assert.ok(!cat.models.some((m) => m.slug === 'gpt-6'), 'gpt-6 is not a real model name');
 });
 
 test('codename and bare-generation aliases', () => {
@@ -39,7 +40,7 @@ test('codename and bare-generation aliases', () => {
   assert.equal(resolveModel('astra', undefined, cat).slug, 'gpt-6-astra');
   assert.equal(resolveModel('sol', undefined, cat).slug, 'gpt-6.1-sol');
   assert.equal(resolveModel('terra', undefined, cat).slug, 'gpt-5.6-terra-wm');
-  assert.equal(resolveModel('gpt-6', undefined, cat).slug, 'gpt-6');
+  assert.ok(/^gpt-6/.test(resolveModel('gpt-6', undefined, cat).slug), 'bare gpt-6 resolves to a GPT-6 family model');
 });
 
 test('lane aliases stay on the listed plain models', () => {

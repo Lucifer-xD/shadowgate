@@ -164,13 +164,12 @@ export interface ModelInfo {
  * The listing marks them `work_mode` and `direct` respectively; codename
  * aliases ("astra") prefer the bare slug.
  */
+// Only names that OpenAI's own Codex endpoint accepts for a ChatGPT account (it validates
+// names, unlike the chat endpoint): gpt-6-astra, gpt-6.1-sol, gpt-6-luna. Verified 2026-10-21;
+// gpt-6, gpt-6-thinking, gpt-6-astra-thinking, gpt-6-sol and gpt-6-pro are rejected there.
 export const DIRECT_MODELS: Array<{ slug: string; title: string; reasoning: string }> = [
-  { slug: 'gpt-6', title: 'GPT-6', reasoning: 'auto' },
-  { slug: 'gpt-6-thinking', title: 'GPT-6 Thinking', reasoning: 'reasoning' },
   { slug: 'gpt-6-astra', title: 'GPT-6 Astra', reasoning: 'auto' },
-  { slug: 'gpt-6-astra-thinking', title: 'GPT-6 Astra Thinking', reasoning: 'reasoning' },
   { slug: 'gpt-6-luna', title: 'GPT-6 Luna', reasoning: 'auto' },
-  { slug: 'gpt-6-sol', title: 'GPT-6 Sol', reasoning: 'auto' },
   { slug: 'gpt-6.1-sol', title: 'GPT-6.1 Sol', reasoning: 'auto' },
 ];
 
@@ -374,7 +373,7 @@ export function resolveModel(requested: string | undefined, effortReq: string | 
   // non-Pro model of the generation, work-mode or not; a high effort wants thinking
   if (/^gpt-\d+$/.test(key) && wantMajor) {
     const inGen = (m: ModelInfo) => m.slug.match(/^gpt-(\d+)/)?.[1] === wantMajor && m.reasoning !== 'pro';
-    const plainExists = models.some((m) => inGen(m) && !m.workMode);
+    const plainExists = models.some((m) => inGen(m) && !m.workMode && !m.direct);
     if (!plainExists) {
       const gen = pick((m) => inGen(m) && (!effortHigh || m.reasoning === 'reasoning'), false) ?? pick(inGen, false);
       if (gen) return finish(gen, cat.defaultModel);

@@ -6,20 +6,20 @@
   <title>ShadowGate — API reference</title>
   <meta name="description" content="ShadowGate API reference: OpenAI-compatible endpoints, streaming, keys, rate limits and model mapping.">
   <meta name="theme-color" content="#09080a">
-  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.13.2">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.13.3">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/assets/base.css?v=1.13.2">
-  <link rel="stylesheet" href="/assets/landing.css?v=1.13.2">
-  <link rel="stylesheet" href="/assets/docs.css?v=1.13.2">
+  <link rel="stylesheet" href="/assets/base.css?v=1.13.3">
+  <link rel="stylesheet" href="/assets/landing.css?v=1.13.3">
+  <link rel="stylesheet" href="/assets/docs.css?v=1.13.3">
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
   <div class="bg-rays" aria-hidden="true"></div>
 
   <header class="nav" id="nav">
-    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.13.2" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
+    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.13.3" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
     <nav class="nav-links" aria-label="Site">
       <a href="/">Home</a><a href="/docs" class="current">Docs</a><a href="/healthz">Health</a>
     </nav>
@@ -147,7 +147,7 @@ data: [DONE]</pre>
           <tr><td>astra, luna, sol, terra</td><td>newest model with that codename — the bare slug when one is listed (<code>astra</code> → <code>gpt-6-astra</code>), else the work-mode one (<code>terra</code> → <code>gpt-5.6-terra-wm</code>)</td></tr>
         </tbody>
       </table>
-      <p><b>GPT-6 family — two lanes, both listed.</b> The <b>work-mode</b> rows end in <code>-wm</code> (<code>gpt-6-astra-wm</code>, <code>gpt-6-luna-wm</code>, <code>gpt-6-sol-wm</code>, <code>gpt-6.1-sol-wm</code>, the 5.6 codenames) and are served inside a work-mode conversation, which ShadowGate opens automatically; the backend reports experience <code>work</code> and gives the model a container sandbox, and continuing such a conversation keeps it saved in the ChatGPT account while active. The <b>bare</b> rows (<code>gpt-6-astra</code>, <code>gpt-6</code>, <code>gpt-6-thinking</code>, <code>gpt-6-astra-thinking</code>, <code>gpt-6-luna</code>, <code>gpt-6-sol</code>, <code>gpt-6.1-sol</code>) are sent as-is in an ordinary chat conversation: the backend accepts them, echoes the slug back and serves the chat lane (experience <code>instant</code>, or <code>thinking</code> for the thinking names); their conversations continue inside temporary chats, so nothing is saved to the account. Be aware that chatgpt.com echoes <i>any</i> slug this way, even a made-up one, so a bare name is not proof of a distinct model — the listing carries <code>work_mode</code>, <code>direct</code> and a <code>lane_note</code> on every row so you can pick knowingly. Codename aliases (<code>astra</code>) resolve to the bare slug; the work-mode form is reachable by its exact name. These models may describe themselves as "GPT-5", "GPT-6" or "ChatGPT" when asked; trust the model field.</p>
+      <p><b>GPT-6 family — two lanes, both listed.</b> The <b>work-mode</b> rows end in <code>-wm</code> (<code>gpt-6-astra-wm</code>, <code>gpt-6-luna-wm</code>, <code>gpt-6-sol-wm</code>, <code>gpt-6.1-sol-wm</code>, the 5.6 codenames) and are served inside a work-mode conversation, which ShadowGate opens automatically; the backend reports experience <code>work</code> and gives the model a container sandbox, and continuing such a conversation keeps it saved in the ChatGPT account while active. The <b>bare</b> rows (<code>gpt-6-astra</code>, <code>gpt-6-luna</code>, <code>gpt-6.1-sol</code> — the names OpenAI's own Codex endpoint also accepts for a ChatGPT account) are sent as-is in an ordinary chat conversation: the backend accepts them, echoes the slug back and serves the chat lane (experience <code>instant</code>, or <code>thinking</code> for the thinking names); their conversations continue inside temporary chats, so nothing is saved to the account. Be aware that chatgpt.com echoes <i>any</i> slug this way, even a made-up one, so a bare name is not proof of a distinct model — the listing carries <code>work_mode</code>, <code>direct</code> and a <code>lane_note</code> on every row so you can pick knowingly. Codename aliases (<code>astra</code>) resolve to the bare slug; the work-mode form is reachable by its exact name. These models may describe themselves as "GPT-5", "GPT-6" or "ChatGPT" when asked; trust the model field.</p>
       <p>The <code>model</code> field in every response (and every stream chunk) is the slug the backend actually answered with, and the <code>x-shadowgate-model</code> response header shows the resolved slug plus effort. A model your plan cannot use returns <code>429</code> with the upstream message.</p>
 
       <h2 id="images">Images</h2>
@@ -242,12 +242,12 @@ data: [DONE]</pre>
 
   <footer class="footer">
     <div class="foot-row">
-      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.13.2" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.13.3" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
       <nav class="foot-links mono"><a href="/">home</a><a href="/admin">console</a><a href="/healthz">health</a><a href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">github</a></nav>
       <div class="foot-note mono">built by <b>Lucifer</b></div>
     </div>
   </footer>
 
-  <script src="/assets/docs.js?v=1.13.2" defer></script>
+  <script src="/assets/docs.js?v=1.13.3" defer></script>
 </body>
 </html>
