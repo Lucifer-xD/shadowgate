@@ -6,20 +6,20 @@
   <title>ShadowGate — API reference</title>
   <meta name="description" content="ShadowGate API reference: OpenAI-compatible endpoints, streaming, keys, rate limits and model mapping.">
   <meta name="theme-color" content="#09080a">
-  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.13.3">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.13.4">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/assets/base.css?v=1.13.3">
-  <link rel="stylesheet" href="/assets/landing.css?v=1.13.3">
-  <link rel="stylesheet" href="/assets/docs.css?v=1.13.3">
+  <link rel="stylesheet" href="/assets/base.css?v=1.13.4">
+  <link rel="stylesheet" href="/assets/landing.css?v=1.13.4">
+  <link rel="stylesheet" href="/assets/docs.css?v=1.13.4">
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
   <div class="bg-rays" aria-hidden="true"></div>
 
   <header class="nav" id="nav">
-    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.13.3" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
+    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.13.4" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
     <nav class="nav-links" aria-label="Site">
       <a href="/">Home</a><a href="/docs" class="current">Docs</a><a href="/healthz">Health</a>
     </nav>
@@ -31,6 +31,7 @@
       <div class="toc-title mono">On this page</div>
       <nav id="toc">
         <a href="#quickstart">Quickstart</a>
+        <a href="#sessions">Adding a session</a>
         <a href="#auth">Authentication</a>
         <a href="#chat">Chat completions</a>
         <a href="#streaming">Streaming</a>
@@ -53,7 +54,7 @@
 
       <h2 id="quickstart">Quickstart</h2>
       <ol class="todo">
-        <li>Open <a href="/admin">the console</a> → <b>Sessions</b> → add a ChatGPT session (raw cookie or export JSON).</li>
+        <li>Open <a href="/admin">the console</a> → <b>Sessions</b> → add a ChatGPT session (see <a href="#sessions">adding a session</a> for the two-minute way to get one).</li>
         <li><b>API keys</b> → create a key. Copy the <code>sg-…</code> value: it is shown once and stored as a hash.</li>
         <li>Point your client at <code>/v1</code>:</li>
       </ol>
@@ -68,6 +69,31 @@ r = client.chat.completions.create(
 )
 <span class="k">print</span>(r.choices[<span class="n">0</span>].message.content)</pre>
       </div>
+
+      <h2 id="sessions">Adding a ChatGPT session</h2>
+      <p>The gateway answers with the ChatGPT accounts you add to its pool. Each session needs three things from a browser that is signed in to that account: the session cookie, the browser's device id (<code>oai-did</code>) and its user agent. Keeping the device id and user agent paired with the session matters — it is what stops ChatGPT from challenging the gateway. The steps below build the export for you in about two minutes; nothing leaves your browser except into your own console.</p>
+      <ol class="todo">
+        <li>Open <a href="https://chatgpt.com" rel="noopener">chatgpt.com</a> in Chrome or Edge, signed in to the account you want to add.</li>
+        <li>Press <b>F12</b> → <b>Network</b> tab → type <code>backend-api</code> in the filter box → send any short message in ChatGPT (or reload the page).</li>
+        <li>Click one of the requests that appear → <b>Headers</b> → <b>Request Headers</b> → right-click the long value next to <code>cookie:</code> → <b>Copy value</b>.</li>
+        <li>Switch to the <b>Console</b> tab, paste the script below and press Enter. Paste the cookie value into the box that opens and press OK. If the browser refuses the paste, type <code>allow pasting</code>, press Enter and paste again.</li>
+        <li>When it prints <code>OK</code>, the export is on your clipboard. Open <a href="/admin">the console</a> → <b>Sessions</b> → <b>Add session</b> → give it a label → paste → <b>Add</b>. It shows <b>HEALTHY</b> within a few seconds.</li>
+      </ol>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>browser console — builds the session export</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono">(() =&gt; {
+  const raw = prompt(&#x27;Paste the cookie header value here&#x27;);
+  if (!raw) return &#x27;cancelled&#x27;;
+  const get = (n) =&gt; (raw.match(new RegExp(&#x27;(?:^|;\\s*)&#x27; + n.replace(/[.*+?^${}()|[\]\\]/g, &#x27;\\$&amp;&#x27;) + &#x27;=([^;]+)&#x27;)) || [])[1] || &#x27;&#x27;;
+  const token = get(&#x27;__Secure-next-auth.session-token&#x27;) || (get(&#x27;__Secure-next-auth.session-token.0&#x27;) + get(&#x27;__Secure-next-auth.session-token.1&#x27;));
+  const deviceId = get(&#x27;oai-did&#x27;);
+  if (token.length &lt; 200 || !deviceId) return &#x27;ERROR: session token or oai-did not found in what you pasted&#x27;;
+  const out = JSON.stringify({ sessionToken: token, statsigContext: { deviceId, userAgent: navigator.userAgent } });
+  copy(out);
+  return `OK — export copied to clipboard (token ${token.length} chars, device ${deviceId.slice(0, 8)}…). Paste it into ShadowGate → Sessions → Add session.`;
+})();</pre>
+      </div>
+      <p class="note">The session cookie is the login to that ChatGPT account — paste it only into your own console. Signing out of ChatGPT in that browser ends the session, so the gateway will show it as expired; add a fresh export when that happens. Use each account at a human pace: heavy automated traffic on one account makes chatgpt.com throttle it (<code>503 session_throttled</code>) until it rests. Several accounts in the pool share the load and fail over to each other.</p>
 
       <h2 id="auth">Authentication</h2>
       <p>Send your key as a bearer token on every request. Keys are stored server-side as SHA-256 hashes and can be disabled or deleted at any time from the console. Each key carries its own <b>rpm</b> (requests per minute) and <b>rpd</b> (requests per day) limits.</p>
@@ -242,12 +268,12 @@ data: [DONE]</pre>
 
   <footer class="footer">
     <div class="foot-row">
-      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.13.3" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.13.4" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
       <nav class="foot-links mono"><a href="/">home</a><a href="/admin">console</a><a href="/healthz">health</a><a href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">github</a></nav>
       <div class="foot-note mono">built by <b>Lucifer</b></div>
     </div>
   </footer>
 
-  <script src="/assets/docs.js?v=1.13.3" defer></script>
+  <script src="/assets/docs.js?v=1.13.4" defer></script>
 </body>
 </html>

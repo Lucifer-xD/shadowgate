@@ -406,6 +406,7 @@
         <h2>Add a <em>session</em></h2>
         <p>Paste the <code>__Secure-next-auth.session-token</code> cookie value from chatgpt.com, or a full session export JSON. Exports are preferred: the device id and user agent inside them keep anti-bot challenges away. Everything is encrypted with AES-256-GCM before it touches disk.</p>
         <label class="field"><span>label</span><input id="at-label" placeholder="main-account" maxlength="60"></label>
+        <p class="dim" style="font-size:.82rem;margin:0 0 .4rem">Not sure how to get it? <a href="/docs#sessions" target="_blank" rel="noopener">Two-minute guide with a ready script</a>.</p>
         <label class="field"><span>session token or export json</span><textarea id="at-token" placeholder="eyJhbGciOiJkaXIiOi…  or  { &quot;sessionToken&quot;: … }" spellcheck="false"></textarea></label>
         <div class="row"><button class="btn btn-ghost" data-close>Cancel</button><button class="btn btn-primary" id="at-go">Add &amp; verify</button></div>`);
       $('#at-go', back).addEventListener('click', async () => {
@@ -740,7 +741,7 @@
     };
     const renderMsg = (m, streaming = false) => `
       <div class="msg ${m.role} ${streaming ? 'streaming' : ''}" data-mid="${m.id}">
-        <div class="mark">${m.role === 'user' ? esc((state.username[0] || 'u').toUpperCase()) : '<img src="/assets/logo.svg?v=1.13.3" alt="">'}</div>
+        <div class="mark">${m.role === 'user' ? esc((state.username[0] || 'u').toUpperCase()) : '<img src="/assets/logo.svg?v=1.13.4" alt="">'}</div>
         <div class="body">
           ${m.role === 'assistant' && m.reasoning ? `<details class="think"><summary>Thought process</summary><div>${esc(m.reasoning)}</div></details>` : ''}
           <div class="bubble ${m.error && !m.content ? 'err' : ''} ${m.role === 'assistant' ? 'md' : ''}">${m.role === 'assistant' ? (m.content ? md(m.content) : esc(m.error || '')) : esc(m.content)}</div>
