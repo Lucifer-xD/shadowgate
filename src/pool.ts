@@ -163,6 +163,7 @@ export class TokenPool {
   }
 
   markSuccess(t: TokenRecord): void {
+    t.throttleStrikes = 0;
     t.failCount = 0;
     t.coolUntil = undefined;
     t.status = 'healthy';
@@ -202,11 +203,16 @@ export class TokenPool {
     this.store.flush();
   }
 
-  /** chatgpt.com flagged this account's traffic: cool it for 10 minutes without counting it as a fault. */
+  /**
+   * chatgpt.com flagged this account's traffic. The throttle is usually soft (some requests
+   * pass), so rest adaptively: 1 min on the first strike, doubling to 10 min; a success resets it.
+   */
   markThrottled(t: TokenRecord): void {
+    t.throttleStrikes = (t.throttleStrikes ?? 0) + 1;
+    const rest = Math.min(10 * 60_000, 60_000 * 2 ** (t.throttleStrikes - 1));
     t.status = 'cooling';
-    t.coolUntil = Date.now() + 10 * 60_000;
-    t.lastError = 'throttled by chatgpt.com ("unusual activity") — resting 10 min';
+    t.coolUntil = Date.now() + rest;
+    t.lastError = `throttled by chatgpt.com ("unusual activity") — resting ${Math.round(rest / 60_000)} min (strike ${t.throttleStrikes})`;
     this.store.flush();
   }
 

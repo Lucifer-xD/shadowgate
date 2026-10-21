@@ -23,6 +23,8 @@ export interface TokenRecord {
   coolUntil?: number;
   /** model slug → epoch ms until which this account's usage cap for that model applies */
   modelCaps?: Record<string, number>;
+  /** consecutive "unusual activity" refusals; drives the adaptive rest and resets on success */
+  throttleStrikes?: number;
   failCount: number;
   lastRefresh?: string;
   lastVerified?: string;
