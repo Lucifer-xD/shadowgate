@@ -13,6 +13,12 @@ test('agent loop: the last real user message decides, not tool output', () => {
   assert.equal(lastUserAsksAboutUsage(loop), true);
   const other = [...loop, { role: 'assistant', content: 'done' }, { role: 'user', content: 'now add a README' }];
   assert.equal(lastUserAsksAboutUsage(other), false);
+  // harness-wrapped turns: a long reminder after the typed text, or the turn split in two messages
+  const prompt = 'Quick test run: create a file, read it, delete it. 4. When the task is done, tell me my current usage.';
+  const reminder = '<system-reminder>' + 'Environment details and rules. '.repeat(400) + '</system-reminder>';
+  assert.equal(lastUserAsksAboutUsage([{ role: 'user', content: [{ type: 'text', text: prompt }, { type: 'text', text: reminder }] }]), true);
+  assert.equal(lastUserAsksAboutUsage([{ role: 'user', content: prompt }, { role: 'user', content: reminder }]), true);
+  assert.equal(lastUserAsksAboutUsage([{ role: 'user', content: reminder + '\n' + prompt + '\n' + reminder }]), true);
   // tool output that mentions usage never triggers it by itself
   assert.equal(lastUserAsksAboutUsage([{ role: 'user', content: 'fix the bug' }, { role: 'tool', content: 'what is my usage?' }]), false);
 });

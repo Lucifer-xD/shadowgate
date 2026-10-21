@@ -179,18 +179,21 @@ const ASK_USAGE: RegExp[] = [
 
 /** True when the conversation's latest real user message (not a tool result) asks about usage. */
 export function lastUserAsksAboutUsage(messages: Array<{ role: string; content?: unknown }>): boolean {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
-    if (m.role !== 'user') continue;
-    const c = m.content;
-    const text = typeof c === 'string' ? c : Array.isArray(c) ? c.filter((p: any) => p?.type === 'text').map((p: any) => String(p.text ?? '')).join('\n') : '';
-    return asksAboutUsage(text);
-  }
-  return false;
+  const textOf = (c: unknown): string =>
+    typeof c === 'string' ? c : Array.isArray(c) ? c.filter((p: any) => p?.type === 'text').map((p: any) => String(p.text ?? '')).join('\n') : '';
+  let i = messages.length - 1;
+  while (i >= 0 && messages[i].role !== 'user') i--;
+  if (i < 0) return false;
+  // harnesses often split one turn into several user messages (the typed text, then reminders)
+  const turn: string[] = [];
+  for (; i >= 0 && messages[i].role === 'user'; i--) turn.unshift(textOf(messages[i].content));
+  return asksAboutUsage(turn.join('\n'));
 }
 
 /** True when a user message asks about their usage or limits. */
 export function asksAboutUsage(text: string): boolean {
-  const t = text.replace(/\n\n\[(?:Harness reminder|Output format|ShadowGate usage):[\s\S]*$/, '').slice(-2000);
+  const body = text.replace(/\n\n\[(?:Harness reminder|Output format|ShadowGate usage):[\s\S]*$/, '');
+  // harnesses wrap the typed text in long context blocks: look at both ends of a long turn
+  const t = body.length > 50000 ? body.slice(0, 25000) + '\n' + body.slice(-25000) : body;
   return ASK_USAGE.some((re) => re.test(t));
 }

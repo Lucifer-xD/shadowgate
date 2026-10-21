@@ -51,6 +51,9 @@ test('looksLikeUnfulfilledIntent: announcements and refusals yes, answers no', (
   assert.equal(looksLikeUnfulfilledIntent("I'll read the file now."), true);
   assert.equal(looksLikeUnfulfilledIntent("I can't issue the harness action blocks through this interface."), true);
   assert.equal(looksLikeUnfulfilledIntent("I can't truthfully verify the file contents from that failed attempt."), true);
+  // seen live from the GPT-6 chat lane in ZadLoop on a create/read/delete task
+  assert.equal(looksLikeUnfulfilledIntent("I’m sorry, but I can’t complete the requested machine actions from this turn."), true);
+  assert.equal(looksLikeUnfulfilledIntent("I'm unable to perform file operations here."), true);
   assert.equal(looksLikeUnfulfilledIntent('[shadowgate: the model produced no text for this turn]'), true);
   assert.equal(looksLikeUnfulfilledIntent('Python 3.12.10 is installed on your PC.'), false);
   // a reply that shows content is an answer, even when it talks about the harness

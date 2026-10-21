@@ -178,10 +178,11 @@ export function looksLikeUnfulfilledIntent(text: string): boolean {
   // "Need the command result to verify the files." — a short reply about tooling with no block
   if (t.length < 200 && (t.match(/\b(command|result|output|file|files|harness|tool|action|block|protocol)\b/gi) || []).length >= 2) return true;
   // "I can't truthfully verify the file contents from that failed attempt." — giving up on something the tools can do
-  if (/(can[’']?t|cannot|unable to|not able to)\s+(truthfully |honestly |reliably |actually |really |yet )?(verify|confirm|check|determine|read|inspect|see|tell|know|retrieve|access)/i.test(t)) return true;
-  // "I can't issue the harness action blocks through this interface." — a refusal of the protocol itself
+  if (/\b(can[’']?t|cannot|unable to|not able to)\s+(truthfully |honestly |reliably |actually |really |yet )?(verify|confirm|check|read|inspect|retrieve|access|complete|perform|carry out|execute|create|write|delete|modify|edit)\b(?!\s+(?:any|anything|no)\b)/i.test(t)) return true;
+  // "I can't issue the harness action blocks through this interface." / "I can't complete the requested
+  // machine actions from this turn." — a refusal of the protocol itself
   if (/\b(can[’']?t|cannot|unable|not able|isn[’']?t available|not available|no longer available|not exposed|stopped being|not executable|no access|don[’']?t have access|blocked|stuck)\b/i.test(t)
-    && /\b(harness|block|action|tool|function|interface|protocol|sequence|steps?)\b/i.test(t)) return true;
+    && /\b(harness|blocks?|actions?|tools?|functions?|interface|protocol|sequence|steps?|machine|computer|pc|commands?)\b/i.test(t)) return true;
   return /\b(i(?:['’]ll| will| need| can| would| should| am going to)|let me|need to|going to|harness action|the action|i['’]d need)\b/i.test(t)
     && /\b(read|check|run|list|look|inspect|open|fetch|execute|search|verify|call|use|request|need|issue|emit|send|provide|perform|access|retry|try|attempt|create|write|delete|remove|fix|correct|continue|proceed|redo|rerun)\b/i.test(t);
 }

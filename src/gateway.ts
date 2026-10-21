@@ -381,11 +381,13 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       messages = transformMessagesForTools(messages);
     }
     if (toolMode) messages = injectToolPreamble(messages, toolPreamble(tools, toolChoice), tools);
+    if (toolMode) notes.push(`tools ${tools.length}`);
     // "what's my usage?" from any client: attach the live numbers so the model answers from real data
     // The question is read from the client's last real user message, so in an agent loop
     // ("do X, then tell me my usage") every later tool round gets fresh numbers too.
-    const lastIdx = messages.length - 1;
-    if (lastIdx >= 0 && messages[lastIdx].role === 'user' && lastUserAsksAboutUsage(body.messages as cg.OpenAIMessage[])) {
+    // (attached to the last user-role message even when the harness adds a system note after it)
+    const lastIdx = messages.map((m) => m.role).lastIndexOf('user');
+    if (lastIdx >= 0 && messages.slice(lastIdx + 1).every((m) => m.role === 'system') && lastUserAsksAboutUsage(body.messages as cg.OpenAIMessage[])) {
       await pool.refreshAllUsage().catch(() => {});
       messages[lastIdx] = appendText(messages[lastIdx], usageNote(usageText(usageReport(store, key))));
       notes.push('usage attached');
