@@ -202,6 +202,14 @@ export class TokenPool {
     this.store.flush();
   }
 
+  /** chatgpt.com flagged this account's traffic: cool it for 10 minutes without counting it as a fault. */
+  markThrottled(t: TokenRecord): void {
+    t.status = 'cooling';
+    t.coolUntil = Date.now() + 10 * 60_000;
+    t.lastError = 'throttled by chatgpt.com ("unusual activity") — resting 10 min';
+    this.store.flush();
+  }
+
   /** A specific session, if it can serve right now (continuations are bound to the account that holds the conversation). */
   pickById(id: string, modelSlug?: string): TokenRecord | null {
     const now = Date.now();

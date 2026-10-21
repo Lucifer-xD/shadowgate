@@ -633,7 +633,9 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       result.status === 503 ? 'service_unavailable' : 'upstream_error';
     finishRequest(store, key, body, result.status, started, totalChars, 0, result.error, notes);
     if (!res.headersSent) {
-      openaiError(res, result.status, result.error ?? 'Unknown upstream error', type);
+      // Cloudflare replaces an origin 502/504 with its own error page, which would hide the message — send 503 instead
+      const httpStatus = result.status === 502 || result.status === 504 ? 503 : result.status;
+      openaiError(res, httpStatus, result.error ?? 'Unknown upstream error', type);
     } else {
       // stream already open — finish it cleanly so clients don't hang
       res.write(chunk({ content: `\n[shadowgate: ${result.error}]`.slice(0, 500) }, null));

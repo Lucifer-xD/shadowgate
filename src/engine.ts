@@ -64,6 +64,11 @@ export function describeUpstreamError(e: unknown): string {
   return JSON.stringify(e).slice(0, 300);
 }
 
+/** chatgpt.com's anti-abuse throttle: every further request extends it, so never retry into it. */
+export function isThrottle(e: unknown): boolean {
+  return /unusual activity/i.test(describeUpstreamError(e));
+}
+
 /** Quota / model-cap errors — the session is fine, the plan just ran dry. */
 export function isModelCap(e: unknown): boolean {
   const text = describeUpstreamError(e).toLowerCase();
@@ -178,6 +183,11 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
       }
       if (streamError && !out) {
         // nothing delivered — treat as a failed attempt
+        if (upstreamErr && isThrottle(upstreamErr)) {
+          // the account is being throttled by chatgpt.com: back this session off for a while and stop immediately
+          pool.markThrottled(tokenUsed);
+          throw new cg.UpstreamError(503, 'session_throttled', `ChatGPT is throttling this account ("unusual activity"). The gateway stops retrying so the block can clear; try again in a while, or add another session.`);
+        }
         if (upstreamErr && isModelCap(upstreamErr)) {
           // the account hit this model's quota: remember it for an hour and try another session for the same model
           pool.markModelCap(tokenUsed, servedModel);
@@ -242,7 +252,7 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
         continue;
       }
       lastError = err;
-      if (err instanceof cg.UpstreamError && err.message === 'model_cap_reached') break;
+      if (err instanceof cg.UpstreamError && (err.message === 'model_cap_reached' || err.message === 'session_throttled')) break;
       const code = err instanceof cg.UpstreamError ? err.code : 0;
       const cause = (err as any)?.cause?.message || (err as any)?.cause?.code;
       console.warn(`[engine] attempt ${attempts} failed: ${err instanceof Error ? err.message : err}${cause ? ` (${cause})` : ''}`);
