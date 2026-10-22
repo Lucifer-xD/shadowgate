@@ -28,6 +28,8 @@ export interface TokenRecord {
   failCount: number;
   lastRefresh?: string;
   lastVerified?: string;
+  /** when the per-model configs (thinking efforts) were last read */
+  modelConfigsAt?: string;
   /** model catalog reported by chatgpt.com for this account (refreshed on verify) */
   models?: Array<{ slug: string; title: string; reasoning: string; efforts: string[]; maxTokens?: number; workMode?: boolean }>;
   defaultModel?: string;

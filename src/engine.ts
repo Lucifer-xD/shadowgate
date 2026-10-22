@@ -31,7 +31,7 @@ export interface CompletionOptions {
   /** incremental thought summaries (reasoning models) */
   onReasoning?: (text: string) => void;
   /** what actually served the turn (experience / harness / slug, from the backend's metadata) */
-  onServed?: (served: { experience?: string; harness?: string; slug?: string }) => void;
+  onServed?: (served: { experience?: string; harness?: string; slug?: string; effort?: string }) => void;
   /** a short note about something the engine did (failover, retry) — for the request log */
   onNote?: (note: string) => void;
   /** fired before onStart when the request continues an existing backend conversation (n = messages sent) */
@@ -143,6 +143,12 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
         ? { conversationId: cont.entry.conversationId, parentMessageId: cont.entry.parentId, persisted: cont.entry.persisted }
         : { persisted: persistNew };
       opts.onChatKind?.(!!target.persisted);
+      if (!target.persisted && resolved.effort !== cg.effortForTemporaryChat(resolved.effort)) {
+        opts.onNote?.(`effort ${resolved.effort} → extended (temporary chat)`);
+        resolved.effort = cg.effortForTemporaryChat(resolved.effort);
+        servedEffort = resolved.effort;
+        opts.onModel?.(resolved.slug, resolved.effort);
+      }
       const upstreamMessages = cont ? cont.newMessages : messages;
       const opened = await cg.openConversation(creds, upstreamMessages, resolved, requirements, signal, target);
       if (continuing) opts.onContinue?.(upstreamMessages.length);
@@ -158,7 +164,8 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
       let convId = '';
       let assistantId = '';
       try {
-        for await (const ev of cg.parseChatGPTSSE(opened.res.body!, opened.inputIds)) {
+        // followTurn also follows a stream handoff (long xhigh / max / ultra turns continue on a resumed stream)
+        for await (const ev of cg.followTurn(creds, opened, signal)) {
           if (ev.upstreamError) {
             upstreamErr = ev.upstreamError;
             streamError = describeUpstreamError(ev.upstreamError);

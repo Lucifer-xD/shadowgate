@@ -11,6 +11,8 @@ const RECENT_VERIFY_MS = 60 * 1000; // skip tokens verified within the last minu
 const EXPIRED_RETRY_MS = 60 * 60 * 1000; // re-check expired tokens hourly (sessions get revived)
 /** usage snapshots younger than this are served from cache — asking twice never costs a second call */
 export const USAGE_FRESH_MS = 2 * 60 * 1000;
+/** How long a session keeps the thinking efforts read from per-model configs before asking again. */
+export const MODEL_CONFIG_TTL_MS = 6 * 60 * 60 * 1000;
 
 const DEFAULT_UA =
   'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
@@ -262,6 +264,31 @@ export class TokenPool {
       try {
         const cat = await cg.fetchModels(creds);
         if (cat.models.length) {
+          // a model's own config can offer more thinking efforts than /models lists (work mode:
+          // min … max); fetched at most every 6 hours, otherwise the last known efforts are kept
+          const known = new Map((t.models ?? []).map((m) => [m.slug, m.efforts]));
+          const stale = !t.modelConfigsAt || Date.now() - Date.parse(t.modelConfigsAt) > MODEL_CONFIG_TTL_MS;
+          if (stale) {
+            // the work-mode catalog (one request) lists each work-mode model's own thinking efforts
+            let fetched = 0;
+            try {
+              const work = await cg.fetchWorkModels(creds);
+              cg.dumpModelConfigs({ work });
+              const bySlug = new Map((Array.isArray(work?.models) ? work.models : []).map((w: any) => [String(w?.slug), w]));
+              for (const m of cat.models) {
+                const efforts = cg.effortsOf(bySlug.get(m.slug));
+                if (efforts.length) { m.efforts = efforts; fetched++; }
+                else if (known.get(m.slug)?.length && m.workMode) m.efforts = known.get(m.slug)!;
+              }
+            } catch (err) {
+              cg.dumpModelConfigs({ error: (err as Error).message, detail: err instanceof cg.UpstreamError ? err.detail : undefined });
+              for (const m of cat.models) if (m.workMode && known.get(m.slug)?.length) m.efforts = known.get(m.slug)!;
+            }
+            if (fetched > 0) t.modelConfigsAt = nowIso(); // nothing usable came back: try again on the next check
+            console.log(`[pool] work-mode catalog for ${t.label}: efforts for ${fetched} model(s)`);
+          } else {
+            for (const m of cat.models) if (known.get(m.slug)?.length) m.efforts = known.get(m.slug)!;
+          }
           t.models = cat.models;
           t.defaultModel = cat.defaultModel;
         }

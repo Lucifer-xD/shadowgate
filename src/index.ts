@@ -59,6 +59,11 @@ const freshSettings = (): Settings => {
 
 const store = new Store(cfg.dataDir, freshSettings);
 initContinuationStore(path.join(cfg.dataDir, 'continuation.json'));
+cg.setModelsDumpPath(path.join(cfg.dataDir, 'models-raw.json'));
+cg.setModelConfigDumpPath(path.join(cfg.dataDir, 'models-work-raw.json'));
+cg.setEmptyTurnDumpPath(path.join(cfg.dataDir, 'last-empty-turn.json'));
+cg.setPollDumpPath(path.join(cfg.dataDir, 'last-handoff-poll.json'));
+cg.setWsDumpPath(path.join(cfg.dataDir, 'last-handoff-ws.json'));
 const chats = new ChatStore(cfg.dataDir);
 if (generatedPassword) store.flush();
 

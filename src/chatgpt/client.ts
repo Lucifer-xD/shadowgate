@@ -1,5 +1,6 @@
 // Minimal, hardened client for the ChatGPT web backend.
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
 import { assetPart, attachmentMeta, loadImage, uploadImage, type ImageAsset } from './images.js';
 import { conversationProof, requirementsProof, setPoWUserAgent, warmBuildId } from './pow.js';
 
@@ -239,6 +240,10 @@ export interface ModelCatalog {
   defaultModel: string;
 }
 
+/** Where the raw /backend-api/models reply is kept for diagnostics (no secrets in it); unset = not kept. */
+let modelsDumpPath: string | undefined;
+export function setModelsDumpPath(p: string): void { modelsDumpPath = p; }
+
 /** GET /backend-api/models — what this account may actually use. */
 export async function fetchModels(creds: ConversationCreds): Promise<ModelCatalog> {
   const r = await fetch(`${BASE}/backend-api/models?history_and_training_disabled=false`, {
@@ -256,6 +261,9 @@ export async function fetchModels(creds: ConversationCreds): Promise<ModelCatalo
   if (r.status === 401) throw new UpstreamError(401, 'session_expired', 'models -> 401');
   if (r.status !== 200) throw new UpstreamError(r.status, 'models_failed', `models -> ${r.status}`);
   const j = (await r.json().catch(() => null)) as any;
+  if (modelsDumpPath && j) {
+    try { fs.writeFileSync(modelsDumpPath, JSON.stringify({ fetchedAt: new Date().toISOString(), reply: j }, null, 2), { mode: 0o600 }); } catch { /* diagnostics only */ }
+  }
   const models: ModelInfo[] = Array.isArray(j?.models)
     ? j.models
         // Deep Research is a different flow, not a chat model
@@ -274,6 +282,53 @@ export async function fetchModels(creds: ConversationCreds): Promise<ModelCatalo
   const defaultModel =
     typeof j?.default_model_slug === 'string' && j.default_model_slug ? j.default_model_slug : models[0]?.slug ?? 'auto';
   return { models, defaultModel };
+}
+
+/**
+ * GET /backend-api/tpp/models/ — the work-mode ("tpp") model catalog the ChatGPT
+ * web app's work picker reads. It lists each work-mode model's own thinking
+ * efforts, which can go beyond the chat catalog's standard/extended (the web
+ * app knows min = Light, standard, extended, xhigh = Extra High, max = Heavy).
+ */
+export async function fetchWorkModels(creds: ConversationCreds): Promise<any> {
+  const r = await fetch(`${BASE}/backend-api/tpp/models/?supports_model_picker_upgrade_presets=true`, {
+    signal: AbortSignal.timeout(30_000),
+    headers: {
+      'user-agent': creds.ua,
+      accept: '*/*',
+      authorization: `Bearer ${creds.accessToken}`,
+      'oai-device-id': creds.deviceId,
+      'oai-language': 'en-US',
+      referer: `${BASE}/work`,
+      ...(creds.accountId ? { 'chatgpt-account-id': creds.accountId } : {}),
+    },
+  });
+  if (r.status === 401) throw new UpstreamError(401, 'session_expired', 'tpp/models -> 401');
+  if (r.status !== 200) throw new UpstreamError(r.status, 'work_models_failed', `tpp/models -> ${r.status}: ${(await r.text().catch(() => '')).slice(0, 300)}`);
+  return r.json();
+}
+
+/** The thinking_effort values a model entry (chat or work catalog) offers. */
+export function effortsOf(entry: any): string[] {
+  return Array.isArray(entry?.thinking_efforts)
+    ? entry.thinking_efforts.map((e: any) => String(e?.thinking_effort ?? e)).filter(Boolean)
+    : [];
+}
+
+/** Where the raw work-mode catalog is kept for diagnostics (no secrets in it). */
+let modelConfigDumpPath: string | undefined;
+export function setModelConfigDumpPath(p: string): void { modelConfigDumpPath = p; }
+export function dumpModelConfigs(configs: Record<string, unknown>): void {
+  if (!modelConfigDumpPath) return;
+  try { fs.writeFileSync(modelConfigDumpPath, JSON.stringify({ fetchedAt: new Date().toISOString(), configs }, null, 2), { mode: 0o600 }); } catch { /* diagnostics only */ }
+}
+
+/** Where the raw frames of the last turn that produced no assistant message are kept (diagnostics). */
+let emptyTurnDumpPath: string | undefined;
+export function setEmptyTurnDumpPath(p: string): void { emptyTurnDumpPath = p; }
+function dumpEmptyTurn(frames: string[]): void {
+  if (!emptyTurnDumpPath) return;
+  try { fs.writeFileSync(emptyTurnDumpPath, JSON.stringify({ at: new Date().toISOString(), frames }, null, 2), { mode: 0o600 }); } catch { /* diagnostics only */ }
 }
 
 /** Used until a session has reported a catalog. */
@@ -312,10 +367,11 @@ const LOW = /^(none|off|minimal|low|medium|standard|light|default|auto)$/;
 
 /**
  * OpenAI reasoning_effort spellings a client may send, and what each becomes
- * upstream. ChatGPT's thinking models know two efforts, standard and extended,
- * so the six OpenAI levels collapse onto those two.
+ * upstream. ChatGPT's chat models know two thinking efforts (standard,
+ * extended); work-mode models list up to six in the work catalog: min (Light),
+ * standard, extended, xhigh (Extra High), max (Heavy) and ultra.
  */
-export const OPENAI_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const;
+export const OPENAI_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const;
 export function effortTable(available: string[]): Record<string, string> {
   const out: Record<string, string> = {};
   if (available.length < 2) return out; // one effort (Pro: standard only) — nothing to choose
@@ -326,13 +382,34 @@ export function effortTable(available: string[]): Record<string, string> {
   return out;
 }
 
+/** For each requested word, the ChatGPT efforts that satisfy it, best first. */
+const EFFORT_PREFERENCE: Record<string, string[]> = {
+  none: ['min', 'standard'], off: ['min', 'standard'], minimal: ['min', 'standard'], low: ['min', 'standard'], light: ['min', 'standard'],
+  medium: ['standard'], default: ['standard'], auto: ['standard'],
+  high: ['extended'], deep: ['extended'],
+  xhigh: ['xhigh', 'extended'], 'extra-high': ['xhigh', 'extended'], extra_high: ['xhigh', 'extended'],
+  max: ['max', 'xhigh', 'extended'], heavy: ['max', 'xhigh', 'extended'],
+  ultra: ['ultra', 'max', 'xhigh', 'extended'],
+};
+
+/**
+ * Efforts whose turns chatgpt.com hands off to a background run (stream_handoff). In a saved
+ * conversation the run streams on the account websocket; in a temporary one it never produces
+ * anything (measured 2026-10-22: subscribed, 7 minutes, no frames). Temporary chats get High.
+ */
+export const HANDOFF_EFFORTS: ReadonlySet<string> = new Set(['xhigh', 'max', 'ultra']);
+export function effortForTemporaryChat(effort: string | undefined): string | undefined {
+  return effort && HANDOFF_EFFORTS.has(effort) ? 'extended' : effort;
+}
+
 /** Map OpenAI reasoning_effort (or ChatGPT's own words) onto a model's effort list. */
 export function mapEffort(requested: string | undefined, available: string[]): string | undefined {
   if (!requested || available.length === 0) return undefined;
   const r = norm(requested);
   if (available.includes(r)) return r;
-  if (HIGH.test(r)) return available.includes('extended') ? 'extended' : available[available.length - 1];
-  if (LOW.test(r)) return available.includes('standard') ? 'standard' : available[0];
+  for (const want of EFFORT_PREFERENCE[r] ?? []) if (available.includes(want)) return want;
+  if (HIGH.test(r)) return available[available.length - 1];
+  if (LOW.test(r)) return available[0];
   return undefined;
 }
 
@@ -603,6 +680,192 @@ export async function openConversation(
   return { res: r, inputIds };
 }
 
+/**
+ * POST /backend-api/f/conversation/resume — follow a turn the backend handed off
+ * to a separate stream (what the ChatGPT web app does on a stream_handoff).
+ */
+export async function resumeConversation(creds: ConversationCreds, conversationId: string, token: string | undefined, clientSignal?: AbortSignal): Promise<Response> {
+  const timeout = AbortSignal.timeout(900_000); // long thinking (xhigh / max / ultra) can run for many minutes
+  const signal = clientSignal ? AbortSignal.any([timeout, clientSignal]) : timeout;
+  const r = await fetch(`${BASE}/backend-api/f/conversation/resume`, {
+    method: 'POST',
+    signal,
+    headers: {
+      'user-agent': creds.ua,
+      accept: 'text/event-stream',
+      'content-type': 'application/json',
+      authorization: `Bearer ${creds.accessToken}`,
+      'oai-device-id': creds.deviceId,
+      'oai-language': 'en-US',
+      origin: BASE,
+      referer: `${BASE}/`,
+      ...(token ? { 'x-conduit-token': token } : {}),
+      ...(creds.accountId ? { 'chatgpt-account-id': creds.accountId } : {}),
+    },
+    body: JSON.stringify({ conversation_id: conversationId, offset: 0 }),
+  });
+  if (r.status !== 200 || !r.body) {
+    let detail = '';
+    try { detail = (await r.text()).slice(0, 400); } catch { /* ignore */ }
+    throw new UpstreamError(r.status, 'resume_failed', `conversation/resume -> ${r.status} ${detail}`.trim());
+  }
+  return r;
+}
+
+/** GET /backend-api/conversation/{id} — the stored conversation (messages by id, current node). */
+export async function fetchConversation(creds: ConversationCreds, conversationId: string, signal?: AbortSignal): Promise<{ status: number; body: any }> {
+  const r = await fetch(`${BASE}/backend-api/conversation/${encodeURIComponent(conversationId)}`, {
+    signal: signal ? AbortSignal.any([AbortSignal.timeout(30_000), signal]) : AbortSignal.timeout(30_000),
+    headers: {
+      'user-agent': creds.ua,
+      accept: '*/*',
+      authorization: `Bearer ${creds.accessToken}`,
+      'oai-device-id': creds.deviceId,
+      'oai-language': 'en-US',
+      referer: `${BASE}/c/${conversationId}`,
+      ...(creds.accountId ? { 'chatgpt-account-id': creds.accountId } : {}),
+    },
+  });
+  const body = await r.json().catch(() => null);
+  return { status: r.status, body };
+}
+
+/** Where the last handed-off turn's poll replies are kept (diagnostics, no secrets). */
+let pollDumpPath: string | undefined;
+export function setPollDumpPath(p: string): void { pollDumpPath = p; }
+
+/**
+ * A handed-off turn (long xhigh / max / ultra thinking) runs on in the background; read its
+ * result from the stored conversation until the assistant's final message is there.
+ */
+async function* pollTurn(creds: ConversationCreds, conversationId: string, skipIds: Set<string>, signal?: AbortSignal): AsyncGenerator<StreamEvent> {
+  const started = Date.now();
+  const log: unknown[] = [];
+  const dump = () => { if (pollDumpPath) try { fs.writeFileSync(pollDumpPath, JSON.stringify(log, null, 2), { mode: 0o600 }); } catch { /* diagnostics only */ } };
+  while (Date.now() - started < 20 * 60_000) {
+    if (signal?.aborted) return;
+    await new Promise((r) => setTimeout(r, 3000));
+    const { status, body } = await fetchConversation(creds, conversationId, signal).catch((err) => ({ status: 0, body: { error: String(err?.message ?? err) } }));
+    const mapping = body?.mapping && typeof body.mapping === 'object' ? body.mapping : {};
+    const msgs = Object.values(mapping).map((n: any) => n?.message).filter((m: any) => m && !skipIds.has(m.id));
+    const assistant = msgs.filter((m: any) => m.author?.role === 'assistant');
+    log.push({ t: Math.round((Date.now() - started) / 1000), status, current: body?.current_node, assistant: assistant.map((m: any) => ({ id: m.id, ct: m.content?.content_type, status: m.status, end_turn: m.end_turn, recipient: m.recipient, effort: m.metadata?.thinking_effort, text: JSON.stringify(m.content?.parts ?? m.content?.text ?? '').slice(0, 200) })) });
+    if (log.length > 40) log.splice(1, 1);
+    dump();
+    if (status !== 200) { if (status === 404 || status === 401 || status === 403) return; continue; }
+    const final = assistant.filter((m: any) => (m.content?.content_type === 'text' || m.content?.content_type === 'multimodal_text') && (!m.recipient || m.recipient === 'all') && (m.end_turn === true || m.status === 'finished_successfully'));
+    const last = final[final.length - 1];
+    if (!last) continue;
+    const text = (Array.isArray(last.content?.parts) ? last.content.parts.filter((p: unknown) => typeof p === 'string').join('') : '').trim();
+    if (!text) continue;
+    if (typeof last.metadata?.model_slug === 'string') yield { modelSlug: last.metadata.model_slug };
+    if (typeof last.metadata?.thinking_effort === 'string') yield { served: { effort: last.metadata.thinking_effort } };
+    yield { delta: cleanVisibleText(text) };
+    yield { finish: 'stop', conversationId, assistantId: last.id, kinds: ['text'] };
+    return;
+  }
+}
+
+/** Where the first frames of the last handed-off turn's websocket are kept (diagnostics, no secrets). */
+let wsDumpPath: string | undefined;
+export function setWsDumpPath(p: string): void { wsDumpPath = p; }
+
+/** GET /backend-api/celsius/ws/user — the URL of the account's event websocket. */
+async function fetchWebSocketUrl(creds: ConversationCreds, signal?: AbortSignal): Promise<string> {
+  const r = await fetch(`${BASE}/backend-api/celsius/ws/user`, {
+    signal: signal ? AbortSignal.any([AbortSignal.timeout(30_000), signal]) : AbortSignal.timeout(30_000),
+    headers: {
+      'user-agent': creds.ua,
+      accept: '*/*',
+      authorization: `Bearer ${creds.accessToken}`,
+      'oai-device-id': creds.deviceId,
+      'oai-language': 'en-US',
+      referer: `${BASE}/`,
+      ...(creds.accountId ? { 'chatgpt-account-id': creds.accountId } : {}),
+    },
+  });
+  if (r.status !== 200) throw new UpstreamError(r.status, 'ws_url_failed', `celsius/ws/user -> ${r.status}`);
+  const j = (await r.json().catch(() => null)) as any;
+  if (typeof j?.websocket_url !== 'string') throw new UpstreamError(502, 'ws_url_failed', 'celsius/ws/user: no websocket_url');
+  return j.websocket_url;
+}
+
+/**
+ * A handed-off turn (long xhigh / max / ultra thinking) streams on as a topic of the account's
+ * websocket, which is what the ChatGPT web app subscribes to. Subscribe from the start of the
+ * topic and turn its stream items back into an SSE body the regular parser reads.
+ */
+async function openTurnTopic(creds: ConversationCreds, topicId: string, signal?: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+  const url = await fetchWebSocketUrl(creds, signal);
+  const enc = new TextEncoder();
+  const frames: string[] = [];
+  const dump = () => { if (wsDumpPath) try { fs.writeFileSync(wsDumpPath, JSON.stringify({ at: new Date().toISOString(), topicId, frames }, null, 2), { mode: 0o600 }); } catch { /* diagnostics only */ } };
+  const WS: any = (globalThis as any).WebSocket;
+  const ws = new WS(url, { headers: { origin: BASE, 'user-agent': creds.ua } });
+  let ctrl!: ReadableStreamDefaultController<Uint8Array>;
+  let closed = false;
+  const finish = () => {
+    if (closed) return;
+    closed = true;
+    clearTimeout(timer);
+    signal?.removeEventListener('abort', finish);
+    dump();
+    try { ctrl.enqueue(enc.encode('data: [DONE]\n\n')); ctrl.close(); } catch { /* already closed */ }
+    try { ws.close(); } catch { /* ignore */ }
+  };
+  const timer = setTimeout(finish, 20 * 60_000);
+  signal?.addEventListener('abort', finish, { once: true });
+  const body = new ReadableStream<Uint8Array>({ start(c) { ctrl = c; }, cancel() { finish(); } });
+  const handle = (m: any): void => {
+    if (closed || !m || typeof m !== 'object') return;
+    if (Array.isArray(m)) { for (const x of m) handle(x); return; }
+    // a refused connect / subscribe would otherwise leave the request waiting for the 20-minute cap
+    if ((m.id === 1 || m.id === 2) && (m.type === 'error' || m.reply?.type === 'error')) { finish(); return; }
+    for (const k of ['response', 'result', 'reply']) if (m[k] && typeof m[k] === 'object') handle(m[k]);
+    if (Array.isArray(m.catchups)) for (const x of m.catchups) handle(x);
+    const p = m.type === 'conversation-turn-stream' ? m : m.payload?.type === 'conversation-turn-stream' ? m.payload : undefined;
+    if (!p) return;
+    const item = p.payload;
+    if (item?.type === 'stream-item' && typeof item.encoded_item === 'string') {
+      const text = item.encoded_item.endsWith('\n\n') ? item.encoded_item : `${item.encoded_item.replace(/\n*$/, '')}\n\n`;
+      try { ctrl.enqueue(enc.encode(text)); } catch { /* closed */ }
+    } else if (item?.type === 'done') finish();
+  };
+  // the web app's handshake: connect (with presence) and subscribe in one batch, as soon as the socket opens
+  ws.addEventListener('open', () => ws.send(JSON.stringify([
+    { id: 1, command: { type: 'connect', presence: { type: 'presence', state: 'foreground' } } },
+    { id: 2, command: { type: 'subscribe', topic_id: topicId, offset: '0' } },
+  ])));
+  ws.addEventListener('message', (ev: any) => {
+    const text = typeof ev.data === 'string' ? ev.data : Buffer.from(ev.data as ArrayBuffer).toString('utf8');
+    if (frames.length < 40) frames.push(text.length > 3000 ? `${text.slice(0, 3000)}…` : text);
+    try { handle(JSON.parse(text)); } catch { /* not JSON */ }
+  });
+  ws.addEventListener('close', finish);
+  ws.addEventListener('error', finish);
+  return body;
+}
+
+/** Parse a turn's stream; on a stream handoff, follow the turn on its websocket topic. */
+export async function* followTurn(creds: ConversationCreds, opened: OpenedConversation, signal?: AbortSignal): AsyncGenerator<StreamEvent> {
+  let handoff: StreamEvent['handoff'];
+  for await (const ev of parseChatGPTSSE(opened.res.body!, opened.inputIds)) {
+    if (ev.handoff) { handoff = ev.handoff; continue; }
+    yield ev;
+  }
+  if (!handoff) return;
+  let text = false;
+  if (handoff.topicId) {
+    const body = await openTurnTopic(creds, handoff.topicId, signal);
+    for await (const ev of parseChatGPTSSE(body, opened.inputIds, { resumed: true })) {
+      if (ev.delta) text = true;
+      yield ev;
+    }
+  }
+  // a saved conversation can also be read back once the background turn is done
+  if (!text) yield* pollTurn(creds, handoff.conversationId, opened.inputIds, signal);
+}
+
 // ── SSE translation ──────────────────────────────────────────────────────
 
 export interface StreamEvent {
@@ -624,7 +887,12 @@ export interface StreamEvent {
    * work-mode ones, which spend work credits) and the slug it ran. Unlike
    * model_slug (which echoes whatever name was sent) this tells the lanes apart.
    */
-  served?: { experience?: string; harness?: string; slug?: string };
+  served?: { experience?: string; harness?: string; slug?: string; effort?: string };
+  /**
+   * The backend moved the rest of this turn to a separate stream (long turns such as xhigh /
+   * max / ultra thinking): resume it at /backend-api/f/conversation/resume with this token.
+   */
+  handoff?: { conversationId: string; token?: string; topicId?: string };
   upstreamError?: unknown;
 }
 
@@ -695,18 +963,24 @@ interface TrackedMessage {
 export async function* parseChatGPTSSE(
   body: ReadableStream<Uint8Array>,
   skipIds: Set<string> = new Set(),
+  opts: { resumed?: boolean } = {},
 ): AsyncGenerator<StreamEvent> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let convId = '';
   let seenSlug = '';
+  let seenEffort = ''; // thinking_effort the backend reports it used (message metadata)
   let finish: string | null = null;
   const messages = new Map<string, TrackedMessage>(); // visible assistant text messages, insertion-ordered
   const meta = new Map<string, any>(); // last full message object by id (for delta patches)
   const thoughts = new Map<string, string>(); // thought message id → emitted reasoning text
   let lastId = '';
   let outTail = ''; // last chars emitted overall, for joining messages
+  const rawTail: string[] = []; // last raw frames, kept for diagnostics of empty turns
+  let resumeToken: string | undefined; // from resume_conversation_token, needed to follow a stream handoff
+  let handedOff = false;
+  let turnComplete = false; // a resumed stream stays subscribed after the turn: message_stream_complete ends it
 
   const visible = (m: any): boolean => {
     if (m.author?.role !== 'assistant') return false;
@@ -763,6 +1037,10 @@ export async function* parseChatGPTSSE(
     if (m.author?.role === 'assistant' || m.author?.role === 'tool') {
       const k = m.author.role === 'tool' ? `tool:${m.author.name ?? '?'}` : `${m.content?.content_type ?? '?'}${m.recipient && m.recipient !== 'all' ? `→${m.recipient}` : ''}`;
       kinds.add(k);
+    }
+    if (typeof m.metadata?.thinking_effort === 'string' && m.metadata.thinking_effort && m.metadata.thinking_effort !== seenEffort) {
+      seenEffort = m.metadata.thinking_effort;
+      yield { served: { effort: seenEffort } };
     }
     if (typeof m.metadata?.model_slug === 'string' && m.metadata.model_slug !== seenSlug) {
       seenSlug = m.metadata.model_slug;
@@ -827,7 +1105,25 @@ export async function* parseChatGPTSSE(
       return;
     }
     if (typeof v.conversation_id === 'string' && !convId) convId = v.conversation_id;
-    if (v.type === 'message_stream_complete') return;
+    if (v.type === 'message_stream_complete') {
+      if (opts.resumed) turnComplete = true;
+      return;
+    }
+    if (v.type === 'resume_conversation_token' && typeof v.token === 'string') {
+      resumeToken = v.token;
+      return;
+    }
+    if (v.type === 'stream_handoff') {
+      if (opts.resumed) return; // a resumed stream replays the turn from the start, handoff included: read on
+      const options: any[] = Array.isArray(v.options) ? v.options : [];
+      const topic = options.find((o) => o?.type === 'subscribe_ws_topic' && typeof o.topic_id === 'string')?.topic_id;
+      const id = typeof v.conversation_id === 'string' ? v.conversation_id : convId;
+      if (id && (topic || options.some((o) => o?.type === 'resume_sse_endpoint'))) {
+        handedOff = true;
+        yield { handoff: { conversationId: id, token: resumeToken, ...(topic ? { topicId: topic } : {}) } };
+      }
+      return;
+    }
     if (v.type === 'server_ste_metadata' && v.metadata && typeof v.metadata === 'object') {
       const md = v.metadata;
       const str = (x: unknown) => (typeof x === 'string' && x ? x : undefined);
@@ -883,14 +1179,25 @@ export async function* parseChatGPTSSE(
         if (data.startsWith('[DONE]')) {
           buffer = '';
           for (const t of messages.values()) if (!t.final) { t.final = true; yield* emitText(t); }
+          if (!lastAssistantId) dumpEmptyTurn(rawTail);
           yield { finish: finish ?? 'stop', conversationId: convId || undefined, kinds: [...kinds], assistantId: lastAssistantId || undefined };
           return;
         }
+        rawTail.push(data.length > 4000 ? `${data.slice(0, 4000)}…` : data);
+        if (rawTail.length > 60) rawTail.shift();
         yield* handleData(data);
+        if (handedOff) return; // the rest of the turn arrives on the resumed stream
+        if (turnComplete) {
+          for (const t of messages.values()) if (!t.final) { t.final = true; yield* emitText(t); }
+          if (!lastAssistantId) dumpEmptyTurn(rawTail);
+          yield { finish: finish ?? 'stop', conversationId: convId || undefined, kinds: [...kinds], assistantId: lastAssistantId || undefined };
+          return;
+        }
       }
     }
     // stream ended without [DONE]
     for (const t of messages.values()) if (!t.final) { t.final = true; yield* emitText(t); }
+    if (!lastAssistantId) dumpEmptyTurn(rawTail);
     yield { finish: finish ?? 'stop', conversationId: convId || undefined, kinds: [...kinds], assistantId: lastAssistantId || undefined };
   } finally {
     reader.releaseLock();

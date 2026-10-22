@@ -1,11 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "shadowgate-gpt6/gpt-6-astra-wm",
-  "small_model": "shadowgate-gpt56/gpt-5-6-instant",
+  "model": "shadowgate-unlimited/gpt-6-astra-wm",
+  "small_model": "shadowgate-chat/gpt-5-6-instant",
   "provider": {
-    "shadowgate-gpt6": {
+    "shadowgate-unlimited": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "ShadowGate · GPT-6 (free)",
+      "name": "ShadowGate · Unlimited",
       "options": {
         "baseURL": "https://ai.shadowvpn.live/v1",
         "apiKey": "{env:SHADOWGATE_API_KEY}"
@@ -30,11 +30,11 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
             }
           }
         },
@@ -57,11 +57,14 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
             }
           }
         },
@@ -84,11 +87,14 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
             }
           }
         },
@@ -111,11 +117,11 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
             }
           }
         },
@@ -138,86 +144,14 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
-            }
-          }
-        }
-      }
-    },
-    "shadowgate-gpt56": {
-      "npm": "@ai-sdk/openai-compatible",
-      "name": "ShadowGate · GPT-5.6 (free)",
-      "options": {
-        "baseURL": "https://ai.shadowvpn.live/v1",
-        "apiKey": "{env:SHADOWGATE_API_KEY}"
-      },
-      "models": {
-        "gpt-5-6": {
-          "name": "GPT-5.6 Sol Auto",
-          "attachment": true,
-          "reasoning": false,
-          "tool_call": true,
-          "limit": {
-            "context": 137000,
-            "output": 16384
-          },
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          }
-        },
-        "gpt-5-6-instant": {
-          "name": "GPT-5.6 Sol Instant",
-          "attachment": true,
-          "reasoning": false,
-          "tool_call": true,
-          "limit": {
-            "context": 137000,
-            "output": 16384
-          },
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          }
-        },
-        "gpt-5-6-thinking": {
-          "name": "GPT-5.6 Sol Thinking",
-          "attachment": true,
-          "reasoning": true,
-          "tool_call": true,
-          "limit": {
-            "context": 262144,
-            "output": 16384
-          },
-          "modalities": {
-            "input": [
-              "text",
-              "image"
-            ],
-            "output": [
-              "text"
-            ]
-          },
-          "variants": {
-            "low": {
-              "reasoningEffort": "low"
-            },
-            "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
             }
           }
         },
@@ -240,11 +174,14 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
             }
           }
         },
@@ -267,11 +204,14 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
             }
           }
         },
@@ -294,11 +234,14 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
             }
           }
         },
@@ -361,6 +304,81 @@
         }
       }
     },
+    "shadowgate-chat": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "ShadowGate · Normal Chat (saved in ChatGPT)",
+      "options": {
+        "baseURL": "https://ai.shadowvpn.live/v1",
+        "apiKey": "{env:SHADOWGATE_API_KEY}"
+      },
+      "models": {
+        "gpt-5-6": {
+          "name": "GPT-5.6 Sol Auto",
+          "attachment": true,
+          "reasoning": false,
+          "tool_call": true,
+          "limit": {
+            "context": 137000,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        "gpt-5-6-instant": {
+          "name": "GPT-5.6 Sol Instant",
+          "attachment": true,
+          "reasoning": false,
+          "tool_call": true,
+          "limit": {
+            "context": 137000,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        "gpt-5-6-thinking": {
+          "name": "GPT-5.6 Sol Thinking",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "medium": {
+              "reasoningEffort": "standard"
+            },
+            "high": {
+              "reasoningEffort": "extended"
+            }
+          }
+        }
+      }
+    },
     "shadowgate-codex": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "ShadowGate · Codex (uses your 5h/Week)",
@@ -388,11 +406,23 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh"
+            },
+            "max": {
+              "reasoningEffort": "max"
+            },
+            "ultra": {
+              "reasoningEffort": "ultra"
             }
           }
         },
@@ -415,11 +445,23 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh"
+            },
+            "max": {
+              "reasoningEffort": "max"
+            },
+            "ultra": {
+              "reasoningEffort": "ultra"
             }
           }
         },
@@ -442,11 +484,11 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
             }
           }
         },
@@ -469,11 +511,20 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh"
+            },
+            "max": {
+              "reasoningEffort": "max"
             }
           }
         },
@@ -496,11 +547,23 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh"
+            },
+            "max": {
+              "reasoningEffort": "max"
+            },
+            "ultra": {
+              "reasoningEffort": "ultra"
             }
           }
         },
@@ -523,11 +586,23 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh"
+            },
+            "max": {
+              "reasoningEffort": "max"
+            },
+            "ultra": {
+              "reasoningEffort": "ultra"
             }
           }
         },
@@ -550,11 +625,20 @@
             ]
           },
           "variants": {
-            "low": {
-              "reasoningEffort": "low"
+            "light": {
+              "reasoningEffort": "min"
+            },
+            "medium": {
+              "reasoningEffort": "standard"
             },
             "high": {
-              "reasoningEffort": "high"
+              "reasoningEffort": "extended"
+            },
+            "xhigh": {
+              "reasoningEffort": "xhigh"
+            },
+            "max": {
+              "reasoningEffort": "max"
             }
           }
         }

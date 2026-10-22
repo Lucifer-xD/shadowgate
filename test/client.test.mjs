@@ -66,12 +66,24 @@ test('titles are unique per listed model; hidden -wm rows keep theirs', () => {
 });
 
 test('effort mapping: OpenAI levels collapse onto standard/extended; Pro offers nothing', () => {
-  assert.deepEqual(effortTable(['standard', 'extended']), { none: 'standard', minimal: 'standard', low: 'standard', medium: 'standard', high: 'extended', xhigh: 'extended' });
+  assert.deepEqual(effortTable(['standard', 'extended']), { none: 'standard', minimal: 'standard', low: 'standard', medium: 'standard', high: 'extended', xhigh: 'extended', max: 'extended', ultra: 'extended' });
   assert.deepEqual(effortTable(['standard']), {});
   assert.equal(mapEffort('xhigh', ['standard', 'extended']), 'extended');
   assert.equal(mapEffort('max', ['standard', 'extended']), 'extended');
   assert.equal(mapEffort('low', ['standard', 'extended']), 'standard');
   assert.equal(mapEffort('high', []), undefined);
+});
+
+test('effort mapping: work-mode models use all six levels of the work catalog', () => {
+  const six = ['min', 'standard', 'extended', 'xhigh', 'max', 'ultra'];
+  assert.deepEqual(effortTable(six), { none: 'min', minimal: 'min', low: 'min', medium: 'standard', high: 'extended', xhigh: 'xhigh', max: 'max', ultra: 'ultra' });
+  // ChatGPT's own words pass straight through
+  for (const e of six) assert.equal(mapEffort(e, six), e);
+  assert.equal(mapEffort('light', six), 'min');
+  assert.equal(mapEffort('heavy', six), 'max');
+  // Luna has no ultra: the nearest lower level answers
+  const five = ['min', 'standard', 'extended', 'xhigh', 'max'];
+  assert.equal(mapEffort('ultra', five), 'max');
 });
 
 test('buildConversationBody: work mode adds conversation_origin, system prompt rides as critic', () => {
@@ -131,4 +143,11 @@ test('GPT-5.6 Sol (auto, instant, thinking) saves its chats by default; other pl
   const cat = catalog();
   assert.equal(savesByDefault(resolveModel('gpt-5-6-thinking', 'high', cat)), true);
   assert.equal(savesByDefault(resolveModel('gpt-6-astra-wm', 'high', cat)), false);
+});
+
+test('effort in a temporary chat: Extra High and above (handed-off turns) run at High', async () => {
+  const { effortForTemporaryChat, HANDOFF_EFFORTS } = await import('../dist/chatgpt/client.js');
+  for (const e of ['xhigh', 'max', 'ultra']) assert.equal(effortForTemporaryChat(e), 'extended');
+  for (const e of ['min', 'standard', 'extended', undefined]) assert.equal(effortForTemporaryChat(e), e);
+  assert.deepEqual([...HANDOFF_EFFORTS].sort(), ['max', 'ultra', 'xhigh']);
 });

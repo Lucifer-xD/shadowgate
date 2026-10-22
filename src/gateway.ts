@@ -121,7 +121,10 @@ function modelList(pool: TokenPool) {
   // every row is listed: the bare GPT-6 slugs (chat lane) and the -wm work-mode slugs
   const real = cat.models.map((m) => {
     const reasons = m.efforts.length > 0 || m.reasoning === 'reasoning' || m.reasoning === 'pro';
-    const efforts = cg.effortTable(m.efforts);
+    const chat = m.saved || cg.savesByDefault({ slug: m.upstreamSlug ?? m.slug, workMode: m.workMode }) ? 'saved' : 'temporary';
+    // Extra High and above run only in saved chats; a temporary chat gets High for them
+    const offered = chat === 'saved' ? m.efforts : m.efforts.filter((e) => !cg.HANDOFF_EFFORTS.has(e));
+    const efforts = cg.effortTable(offered);
     const effortIds = Object.keys(efforts);
     // the model's real context window as chatgpt.com reports it; the per-request
     // character budget is enforced by the gateway (history compaction), not by this number
@@ -140,7 +143,7 @@ function modelList(pool: TokenPool) {
     supports_reasoning: reasons,
     reasoning_efforts: effortIds,               // OpenAI spellings accepted in reasoning_effort
     reasoning_effort_map: efforts,              // what each becomes upstream (standard / extended)
-    thinking_efforts: m.efforts,                // ChatGPT's own values, also accepted
+    thinking_efforts: offered,                  // ChatGPT's own values, also accepted
     default_reasoning_effort: reasons ? 'medium' : undefined,
     capabilities: { tools: true, function_calling: true, streaming: true, json_mode: true, reasoning: reasons, vision: true },
     input_modalities: ['text', 'image'],
@@ -165,10 +168,10 @@ function modelList(pool: TokenPool) {
     saved: !!m.saved,
     metered: !!m.saved,
     // the conversation type a request to this row uses by default (override per request: x-shadowgate-chat)
-    chat: m.saved || cg.savesByDefault({ slug: m.upstreamSlug ?? m.slug, workMode: m.workMode }) ? 'saved' : 'temporary',
+    chat,
     lane_note: m.saved
       ? 'work-mode model in a saved conversation (ChatGPT\'s Codex harness): continues in place and counts toward the plan\'s 5-hour and weekly usage; the chat is hidden from the account history after 25 minutes idle'
-      : m.workMode ? 'work-mode model in a temporary chat: not counted toward the plan\'s usage windows; every turn resends the history'
+      : m.workMode ? 'work-mode model in a temporary chat: not counted toward the plan\'s usage windows; every turn resends the history; Extra High and above need a saved chat (the -codex row), so here they run at High'
       : cg.savesByDefault({ slug: m.upstreamSlug ?? m.slug, workMode: m.workMode }) ? 'chat model in a normal saved chat: continues in place, stays in the account history, not counted toward the plan\'s usage windows'
       : m.direct ? 'chat lane; the backend echoes the slug; continues inside temporary chats' : undefined,
   };
@@ -488,6 +491,7 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     // x-shadowgate-chat: saved | temporary — pick the conversation type per request
     const chatHeader = String(req.headers['x-shadowgate-chat'] ?? '').trim().toLowerCase();
     const chatKind = chatHeader === 'saved' || chatHeader === 'temporary' ? chatHeader : undefined;
+    const served: { experience?: string; harness?: string; slug?: string; effort?: string } = {};
     const runOnce = (msgs: cg.OpenAIMessage[]) => runCompletion({
       pool,
       store,
@@ -507,11 +511,18 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
         if (!res.headersSent) res.setHeader('x-shadowgate-model', slug + (effort ? `;thinking_effort=${effort}` : ''));
       },
       onServed: (s) => {
-        // the lane that really answered: "chat" (the chat lane) or "work" (the real work-mode family)
-        const value = [s.experience && `experience=${s.experience}`, s.harness && `harness=${s.harness}`, s.slug && `slug=${s.slug}`].filter(Boolean).join('; ');
+        // the lane that really answered ("chat" lane or "work" family) and the thinking effort the backend used
+        Object.assign(served, Object.fromEntries(Object.entries(s).filter(([, v]) => v)));
+        const value = [served.experience && `experience=${served.experience}`, served.harness && `harness=${served.harness}`, served.slug && `slug=${served.slug}`, served.effort && `effort=${served.effort}`].filter(Boolean).join('; ');
         if (value && !res.headersSent) res.setHeader('x-shadowgate-served', value);
-        const note = `served ${s.experience ?? '?'}/${s.harness ?? '?'}`;
-        if (!notes.includes(note)) notes.push(note);
+        if (s.experience || s.harness) {
+          const note = `served ${served.experience ?? '?'}/${served.harness ?? '?'}`;
+          if (!notes.includes(note)) notes.push(note);
+        }
+        if (s.effort) {
+          const note = `effort ${s.effort}`;
+          if (!notes.includes(note)) notes.push(note);
+        }
       },
       onStart: () => {
         if (stream && !streamStarted) {
