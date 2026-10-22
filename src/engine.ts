@@ -20,6 +20,10 @@ export interface CompletionOptions {
   signal?: AbortSignal;
   /** fired once, as soon as an upstream conversation is open (before any delta) */
   onStart?: () => void;
+  /** force the conversation type for this request: a saved chat (in the account's history) or a temporary one */
+  chat?: 'saved' | 'temporary';
+  /** the conversation type actually used (true = saved in the account) */
+  onChatKind?: (saved: boolean) => void;
   /** resolved / actually-served model (may fire twice: resolution, then backend echo) */
   onModel?: (slug: string, effort?: string) => void;
   /** return 'stop' to end the completion early (stop sequence / max_tokens) — finish becomes 'length'/'stop' as given */
@@ -127,13 +131,18 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
       if (attempts > 1) opts.onNote?.(`retry ${attempts} on ${tokenUsed.label}`);
       opts.onModel?.(resolved.slug, resolved.effort);
       // work-mode conversations only continue when saved to the account; temporary ones do for plain models
-      // (the Codex-lane twins always save: that is their lane — metered, but continued in place)
-      const persistNew = !!resolved.workMode && (policy === 'all' || !!resolved.saved);
-      if (cont && (cont.entry.model !== resolved.slug || (resolved.workMode && !cont.entry.persisted))) cont = null;
+      // (the Codex-lane twins always save: that is their lane — metered, but continued in place).
+      // A client may pick the chat type per request (x-shadowgate-chat: saved | temporary).
+      const persistNew = opts.chat === 'saved' ? true
+        : opts.chat === 'temporary' ? false
+        : (!!resolved.workMode && (policy === 'all' || !!resolved.saved)) || cg.savesByDefault(resolved);
+      // never continue a conversation of the other kind (a temporary chat when a saved one is wanted, or back)
+      if (cont && (cont.entry.model !== resolved.slug || cont.entry.persisted !== persistNew || (resolved.workMode && !cont.entry.persisted))) cont = null;
       continuing = !!cont;
       const target: cg.ConversationTarget = cont
         ? { conversationId: cont.entry.conversationId, parentMessageId: cont.entry.parentId, persisted: cont.entry.persisted }
         : { persisted: persistNew };
+      opts.onChatKind?.(!!target.persisted);
       const upstreamMessages = cont ? cont.newMessages : messages;
       const opened = await cg.openConversation(creds, upstreamMessages, resolved, requirements, signal, target);
       if (continuing) opts.onContinue?.(upstreamMessages.length);

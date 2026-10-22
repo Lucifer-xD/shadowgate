@@ -291,6 +291,16 @@ export interface ResolvedModel {
   requested: string;
 }
 
+/**
+ * Plain (non-work-mode) models that run in a saved conversation by default
+ * instead of a temporary one. Empty until a model is measured to cost nothing
+ * on the plan's usage windows in a saved chat.
+ */
+export const SAVED_BY_DEFAULT: RegExp | null = null;
+export function savesByDefault(m: Pick<ResolvedModel, 'slug' | 'workMode'>): boolean {
+  return !m.workMode && !!SAVED_BY_DEFAULT?.test(m.slug);
+}
+
 const norm = (s: string) => s.trim().toLowerCase();
 /** "gpt-5.6-thinking" → "gpt-5-6-thinking"; strips date suffixes like -2025-10-01 */
 const canon = (s: string) => norm(s).replace(/\./g, '-').replace(/-\d{4}-\d{2}-\d{2}$/, '');

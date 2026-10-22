@@ -325,8 +325,8 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
   app.use('/v1', (req, res, next) => {
     res.setHeader('access-control-allow-origin', '*');
     res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
-    res.setHeader('access-control-allow-headers', 'authorization, content-type, openai-organization, openai-project, x-stainless-arch, x-stainless-lang, x-stainless-os, x-stainless-package-version, x-stainless-runtime, x-stainless-runtime-version, x-stainless-retry-count, x-stainless-timeout');
-    res.setHeader('access-control-expose-headers', 'x-shadowgate-model, x-shadowgate-served, retry-after');
+    res.setHeader('access-control-allow-headers', 'authorization, content-type, openai-organization, openai-project, x-stainless-arch, x-stainless-lang, x-stainless-os, x-stainless-package-version, x-stainless-runtime, x-stainless-runtime-version, x-stainless-retry-count, x-stainless-timeout, x-shadowgate-chat');
+    res.setHeader('access-control-expose-headers', 'x-shadowgate-model, x-shadowgate-served, x-shadowgate-chat, x-shadowgate-continued, retry-after');
     res.setHeader('access-control-max-age', '600');
     if (req.method === 'OPTIONS') {
       res.status(204).end();
@@ -482,6 +482,9 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
     let outChars = 0; // visible chars delivered so far (stop / max_tokens accounting)
     let jsonBuffer = ''; // json-mode streams are delivered whole so fences can be stripped
     res.on('close', () => { if (heartbeat) clearInterval(heartbeat); });
+    // x-shadowgate-chat: saved | temporary — pick the conversation type per request
+    const chatHeader = String(req.headers['x-shadowgate-chat'] ?? '').trim().toLowerCase();
+    const chatKind = chatHeader === 'saved' || chatHeader === 'temporary' ? chatHeader : undefined;
     const runOnce = (msgs: cg.OpenAIMessage[]) => runCompletion({
       pool,
       store,
@@ -489,6 +492,12 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
       model,
       effort: effortReq,
       signal: clientAbort.signal,
+      chat: chatKind,
+      onChatKind: (saved) => {
+        if (!res.headersSent) res.setHeader('x-shadowgate-chat', saved ? 'saved' : 'temporary');
+        const note = saved ? 'saved chat' : '';
+        if (note && !notes.includes(note)) notes.push(note);
+      },
       onModel: (slug, effort) => {
         // the client sees the clean name ("gpt-6-astra"); the header keeps the exact upstream slug
         servedModel = cleanName(slug);
