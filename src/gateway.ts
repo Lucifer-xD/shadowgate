@@ -640,6 +640,14 @@ export function mountGateway(app: Express, store: Store, cfg: Config, pool: Toke
         result = firstResult;
         visibleText = announced;
         unsent = firstUnsent;
+      } else if (!calls.length && !emptyTurn && visibleText.trim().startsWith('[shadowgate:')) {
+        // the re-run went to the model's own sandbox and produced nothing forwardable: the first
+        // reply was a real answer after all, so it stands alone without an empty-turn note
+        console.warn('[gateway] tool mode: nudge produced an empty turn — keeping the original reply');
+        notes.push('nudge empty → kept reply');
+        result = firstResult;
+        visibleText = announced;
+        unsent = firstUnsent;
       } else if (!calls.length && (!intent || cappedStop)) {
         // it really was the final answer (or it would not page on) — keep the original, drop the restatement
         result = firstResult;
