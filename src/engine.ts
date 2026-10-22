@@ -127,7 +127,8 @@ export async function runCompletion(opts: CompletionOptions): Promise<Completion
       if (attempts > 1) opts.onNote?.(`retry ${attempts} on ${tokenUsed.label}`);
       opts.onModel?.(resolved.slug, resolved.effort);
       // work-mode conversations only continue when saved to the account; temporary ones do for plain models
-      const persistNew = !!resolved.workMode && policy === 'all';
+      // (the Codex-lane twins always save: that is their lane — metered, but continued in place)
+      const persistNew = !!resolved.workMode && (policy === 'all' || !!resolved.saved);
       if (cont && (cont.entry.model !== resolved.slug || (resolved.workMode && !cont.entry.persisted))) cont = null;
       continuing = !!cont;
       const target: cg.ConversationTarget = cont

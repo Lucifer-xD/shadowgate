@@ -144,6 +144,16 @@ export interface ModelInfo {
   upstreamSlug?: string;
   /** a bare GPT-6 slug sent in an ordinary chat conversation (listed on request; see withCleanWorkModels) */
   direct?: boolean;
+  /**
+   * Codex-lane twin of a work-mode model ("gpt-6-astra-codex"): the same -wm
+   * model in a SAVED conversation, which ChatGPT runs through its Codex harness.
+   * It continues in place, and it counts toward the plan's 5-hour and weekly
+   * usage. The plain -wm row runs in a temporary chat (Harmony harness):
+   * unmetered, but every turn resends the history. Verified 2026-10-22: two
+   * small saved turns moved the 5-hour window 0% → 3%; temporary turns
+   * moved nothing.
+   */
+  saved?: boolean;
 }
 
 /**
@@ -182,7 +192,15 @@ export function withCleanWorkModels(cat: ModelCatalog): ModelCatalog {
     });
   }
   const models = [...cat.models, ...extra].map((m) => (m.workMode && !/work mode/i.test(m.title) ? { ...m, title: `${m.title} (work mode)` } : m));
-  return uniqueTitles({ ...cat, models });
+  // each work-mode model also gets a metered Codex-lane twin (saved conversation, continues in place)
+  const twins: ModelInfo[] = [];
+  for (const m of models) {
+    if (!m.workMode || m.saved || !/-wm$/i.test(m.slug)) continue;
+    const slug = `${m.slug.replace(/-wm$/i, '')}-codex`;
+    if (have.has(slug.toLowerCase())) continue;
+    twins.push({ ...m, slug, upstreamSlug: m.upstreamSlug ?? m.slug, title: `${m.title.replace(/\s*\(work mode\)\s*$/i, '')} · Codex (metered)`, saved: true });
+  }
+  return uniqueTitles({ ...cat, models: [...models, ...twins] });
 }
 
 /** Kept for callers that used the old name. */
@@ -267,6 +285,8 @@ export interface ResolvedModel {
   effort?: string;
   /** send conversation_origin: "tpp" (work-mode models) */
   workMode?: boolean;
+  /** run in a saved conversation (the metered Codex lane), see ModelInfo.saved */
+  saved?: boolean;
   /** what the client asked for */
   requested: string;
 }
@@ -330,7 +350,8 @@ export function resolveModel(requested: string | undefined, effortReq: string | 
   // lane aliases (thinking/pro/mini/instant, o-series) stay on the plain listed
   // models; codename and bare-generation aliases may land on work-mode ones
   const pick = (pred: (m: ModelInfo) => boolean, preferPlain = true): ModelInfo | undefined => {
-    const c = models.filter((m) => m.slug !== 'research' && pred(m));
+    // aliases never land on a metered Codex-lane twin; that lane is reachable only by its exact name
+    const c = models.filter((m) => m.slug !== 'research' && !m.saved && pred(m));
     c.sort((a, b) =>
       (preferPlain ? Number(!!a.workMode || !!a.direct) - Number(!!b.workMode || !!b.direct) : 0) ||
       versionOf(b.slug) - versionOf(a.slug) ||
@@ -347,6 +368,7 @@ export function resolveModel(requested: string | undefined, effortReq: string | 
     slug: m?.upstreamSlug ?? m?.slug ?? fallback,
     effort: m ? mapEffort(effortReq, m.efforts) : undefined,
     workMode: m?.workMode || undefined,
+    saved: m?.saved || undefined,
     requested: want,
   });
 

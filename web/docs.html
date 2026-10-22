@@ -6,20 +6,20 @@
   <title>ShadowGate — API reference</title>
   <meta name="description" content="ShadowGate API reference: OpenAI-compatible endpoints, streaming, keys, rate limits and model mapping.">
   <meta name="theme-color" content="#09080a">
-  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.15.5">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.16.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/assets/base.css?v=1.15.5">
-  <link rel="stylesheet" href="/assets/landing.css?v=1.15.5">
-  <link rel="stylesheet" href="/assets/docs.css?v=1.15.5">
+  <link rel="stylesheet" href="/assets/base.css?v=1.16.0">
+  <link rel="stylesheet" href="/assets/landing.css?v=1.16.0">
+  <link rel="stylesheet" href="/assets/docs.css?v=1.16.0">
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
   <div class="bg-rays" aria-hidden="true"></div>
 
   <header class="nav" id="nav">
-    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.15.5" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
+    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.16.0" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
     <nav class="nav-links" aria-label="Site">
       <a href="/">Home</a><a href="/docs" class="current">Docs</a><a href="/healthz">Health</a>
     </nav>
@@ -174,7 +174,7 @@ data: [DONE]</pre>
           <tr><td>astra, luna, sol, gpt-6-astra, gpt-6.1-sol, any GPT-6 name without <code>-wm</code></td><td><code>gpt-6</code> — the unmetered chat lane, which answers every such name with the same model (see below); <code>terra</code> → <code>gpt-5.6-terra-wm</code></td></tr>
         </tbody>
       </table>
-      <p><b>GPT-6 family — what is real, and what is unmetered.</b> The <b>real</b> GPT-6 models are the work-mode rows ending in <code>-wm</code> (<code>gpt-6-astra-wm</code>, <code>gpt-6.1-sol-wm</code>, <code>gpt-6-luna-wm</code>, <code>gpt-6-sol-wm</code>, the 5.6 codenames). They are served only inside a work-mode conversation, which ShadowGate opens automatically, and they spend the ChatGPT workspace's work credits. The <b>unmetered chat lane</b> is listed once, as <code>gpt-6</code> (“GPT-6 (chat lane, unmetered)”): chatgpt.com's chat endpoint answers <i>every</i> GPT-6-style name — <code>gpt-6-astra</code>, <code>gpt-6.1-sol</code>, even a made-up <code>gpt-9-zeus</code> — with one and the same configuration whose system prompt calls it “GPT-6” (measured on a live session: the Astra name and the made-up name gave identical answers; <code>gpt-5-6</code> calls itself “GPT-5.6 Sol”). So any GPT-6 name without <code>-wm</code> is sent there as <code>gpt-6</code>, and the reply's <code>model</code> says <code>gpt-6</code>, which is what actually answered. Real Astra in the unlimited chat lane is not something chatgpt.com offers; the only real Astra is <code>gpt-6-astra-wm</code>.</p>
+      <p><b>GPT-6 family — what is real, and what is unmetered.</b> The <b>real</b> GPT-6 models are the work-mode rows ending in <code>-wm</code> (<code>gpt-6-astra-wm</code>, <code>gpt-6.1-sol-wm</code>, <code>gpt-6-luna-wm</code>, <code>gpt-6-sol-wm</code>, the 5.6 codenames). They are served only inside a work-mode conversation, which ShadowGate opens automatically. Each comes in two lanes. The <code>-wm</code> row runs in a <b>temporary</b> chat: it is not counted toward the plan's 5-hour and weekly usage, but every turn resends the whole history. Its twin ending in <code>-codex</code> (<code>gpt-6-astra-codex</code>, “GPT-6 Astra · Codex (metered)”) runs the same model in a <b>saved</b> chat, which ChatGPT serves through its Codex harness: the chat continues in place (only new messages are sent), and every turn counts toward the plan's usage, roughly 1–2% of the 5-hour window for a small message. Saved chats are hidden from the account's history after 25 minutes idle. <code>x-shadowgate-served</code> reports <code>harness=Harmony</code> for the temporary lane and <code>harness=Codex</code> for the saved one. The <b>unmetered chat lane</b> is listed once, as <code>gpt-6</code> (“GPT-6 (chat lane, unmetered)”): chatgpt.com's chat endpoint answers <i>every</i> GPT-6-style name — <code>gpt-6-astra</code>, <code>gpt-6.1-sol</code>, even a made-up <code>gpt-9-zeus</code> — with one and the same configuration whose system prompt calls it “GPT-6” (measured on a live session: the Astra name and the made-up name gave identical answers; <code>gpt-5-6</code> calls itself “GPT-5.6 Sol”). So any GPT-6 name without <code>-wm</code> is sent there as <code>gpt-6</code>, and the reply's <code>model</code> says <code>gpt-6</code>, which is what actually answered. Real Astra in the unlimited chat lane is not something chatgpt.com offers; the only real Astra is <code>gpt-6-astra-wm</code>.</p>
       <p>The <code>model</code> field in every response (and every stream chunk) is the slug the backend actually answered with, and the <code>x-shadowgate-model</code> response header shows the resolved slug plus effort. On non-streaming responses, <code>x-shadowgate-served</code> reports what really answered, from the backend's own metadata: <code>experience=chat</code> for the chat lane or <code>experience=work</code> for the work-mode GPT-6 family, plus the harness and slug. The backend echoes any model name in <code>model</code>, so this is the header to trust. A model your plan cannot use returns <code>429</code> with the upstream message.</p>
 
       <h2 id="usage"><span class="meth get">GET</span> /v1/usage</h2>
@@ -287,12 +287,12 @@ curl "https://ai.shadowvpn.live/v1/usage?format=text" -H "Authorization: Bearer 
 
   <footer class="footer">
     <div class="foot-row">
-      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.15.5" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.16.0" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
       <nav class="foot-links mono"><a href="/">home</a><a href="/admin">console</a><a href="/healthz">health</a><a href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">github</a></nav>
       <div class="foot-note mono">built by <b>Lucifer</b></div>
     </div>
   </footer>
 
-  <script src="/assets/docs.js?v=1.15.5" defer></script>
+  <script src="/assets/docs.js?v=1.16.0" defer></script>
 </body>
 </html>

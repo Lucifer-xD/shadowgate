@@ -1,6 +1,6 @@
 {
   "name": "shadowgate",
-  "version": "1.15.5",
+  "version": "1.16.0",
   "description": "ShadowGate — a private, self-hosted gate that turns ChatGPT sessions into an OpenAI-compatible API, with a hardened admin console.",
   "type": "module",
   "main": "dist/index.js",

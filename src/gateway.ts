@@ -162,7 +162,12 @@ function modelList(pool: TokenPool) {
     upstream_slug: m.upstreamSlug ?? m.slug,
     work_mode: !!m.workMode,
     direct: !!m.direct,
-    lane_note: m.workMode ? 'work-mode conversation; continuation keeps the chat saved in the account while active' : m.direct ? 'chat lane; the backend echoes the slug; continues inside temporary chats' : undefined,
+    saved: !!m.saved,
+    metered: !!m.saved,
+    lane_note: m.saved
+      ? 'work-mode model in a saved conversation (ChatGPT\'s Codex harness): continues in place and counts toward the plan\'s 5-hour and weekly usage; the chat is hidden from the account history after 25 minutes idle'
+      : m.workMode ? 'work-mode model in a temporary chat: not counted toward the plan\'s usage windows; every turn resends the history'
+      : m.direct ? 'chat lane; the backend echoes the slug; continues inside temporary chats' : undefined,
   };
   });
   // aliases (auto, gpt-5, o3, astra …) keep resolving but are not listed: one row per real model

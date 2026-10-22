@@ -95,3 +95,30 @@ test('image sniffing and sizes', () => {
   assert.equal(sniffMime(Buffer.from('GIF89a')), 'image/gif');
   assert.equal(sniffMime(Buffer.from('hello')), null);
 });
+
+test('every work-mode model has a metered Codex-lane twin reachable only by its exact name', () => {
+  const cat = catalog();
+  const twin = cat.models.find((m) => m.slug === 'gpt-6-astra-codex');
+  assert.ok(twin, 'gpt-6-astra-codex listed');
+  assert.equal(twin.saved, true);
+  assert.equal(twin.workMode, true);
+  assert.equal(twin.upstreamSlug, 'gpt-6-astra-wm');
+  assert.match(twin.title, /^GPT-6 Astra · Codex \(metered\)$/);
+  assert.ok(cat.models.some((m) => m.slug === 'gpt-6.1-sol-codex' && m.saved));
+  assert.ok(cat.models.some((m) => m.slug === 'gpt-5.6-terra-codex' && m.saved));
+  assert.ok(!cat.models.some((m) => m.slug === 'gpt-6-codex'), 'the chat lane has no twin');
+
+  const saved = resolveModel('gpt-6-astra-codex', 'high', cat);
+  assert.equal(saved.slug, 'gpt-6-astra-wm');
+  assert.equal(saved.workMode, true);
+  assert.equal(saved.saved, true);
+  assert.equal(saved.effort, 'extended');
+
+  const temp = resolveModel('gpt-6-astra-wm', 'high', cat);
+  assert.equal(temp.slug, 'gpt-6-astra-wm');
+  assert.equal(temp.saved, undefined);
+  // aliases stay on the free lanes
+  assert.equal(resolveModel('terra', undefined, cat).saved, undefined);
+  assert.equal(resolveModel('terra', undefined, cat).slug, 'gpt-5.6-terra-wm');
+  assert.equal(resolveModel('astra', undefined, cat).saved, undefined);
+});
