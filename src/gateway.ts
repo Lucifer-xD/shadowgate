@@ -164,9 +164,12 @@ function modelList(pool: TokenPool) {
     direct: !!m.direct,
     saved: !!m.saved,
     metered: !!m.saved,
+    // the conversation type a request to this row uses by default (override per request: x-shadowgate-chat)
+    chat: m.saved || cg.savesByDefault({ slug: m.upstreamSlug ?? m.slug, workMode: m.workMode }) ? 'saved' : 'temporary',
     lane_note: m.saved
       ? 'work-mode model in a saved conversation (ChatGPT\'s Codex harness): continues in place and counts toward the plan\'s 5-hour and weekly usage; the chat is hidden from the account history after 25 minutes idle'
       : m.workMode ? 'work-mode model in a temporary chat: not counted toward the plan\'s usage windows; every turn resends the history'
+      : cg.savesByDefault({ slug: m.upstreamSlug ?? m.slug, workMode: m.workMode }) ? 'chat model in a normal saved chat: continues in place, stays in the account history, not counted toward the plan\'s usage windows'
       : m.direct ? 'chat lane; the backend echoes the slug; continues inside temporary chats' : undefined,
   };
   });

@@ -154,7 +154,9 @@ export function sweepExpired(now = Date.now()): ContinuationEntry[] {
   for (const [k, e] of entries) {
     if (now - e.lastUsed <= TTL_MS) continue;
     entries.delete(k);
-    if (e.persisted && !out.has(e.conversationId)) out.set(e.conversationId, e);
+    // only saved WORK-MODE chats are hidden once idle; saved plain chats (GPT-5.6 Sol) stay in the
+    // account's history like chats the user made, as the owner asked
+    if (e.persisted && /-wm$/i.test(e.model) && !out.has(e.conversationId)) out.set(e.conversationId, e);
   }
   // a conversation still referenced by a live entry must not be hidden
   for (const e of entries.values()) out.delete(e.conversationId);

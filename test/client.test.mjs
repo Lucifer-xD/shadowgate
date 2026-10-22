@@ -122,3 +122,13 @@ test('every work-mode model has a metered Codex-lane twin reachable only by its 
   assert.equal(resolveModel('terra', undefined, cat).slug, 'gpt-5.6-terra-wm');
   assert.equal(resolveModel('astra', undefined, cat).saved, undefined);
 });
+
+test('GPT-5.6 Sol (auto, instant, thinking) saves its chats by default; other plain models and work mode do not', async () => {
+  const { savesByDefault } = await import('../dist/chatgpt/client.js');
+  for (const slug of ['gpt-5-6', 'gpt-5-6-instant', 'gpt-5-6-thinking']) assert.equal(savesByDefault({ slug }), true, slug);
+  for (const slug of ['gpt-5-6-mini', 'gpt-5-6-t-mini', 'gpt-5-3-mini', 'gpt-6', 'gpt-5-6-pro']) assert.equal(savesByDefault({ slug }), false, slug);
+  assert.equal(savesByDefault({ slug: 'gpt-5.6-sol-wm', workMode: true }), false);
+  const cat = catalog();
+  assert.equal(savesByDefault(resolveModel('gpt-5-6-thinking', 'high', cat)), true);
+  assert.equal(savesByDefault(resolveModel('gpt-6-astra-wm', 'high', cat)), false);
+});

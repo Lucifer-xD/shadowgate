@@ -81,3 +81,10 @@ test('continuesInPlace: temporary work-mode chats are resent whole, so their ful
   assert.equal(continuesInPlace(entry('gpt-6-astra-wm', false)), false);
   assert.equal(continuesInPlace(entry('gpt-6-astra-wm', true)), true);
 });
+
+test('sweepExpired hides idle saved work-mode chats but leaves saved plain chats in the history', () => {
+  rememberContinuation(base(), 'gpt-6-astra-codex', undefined, entry({ conversationId: 'wm-saved', model: 'gpt-6-astra-wm', persisted: true }));
+  rememberContinuation([...base(), { role: 'user', content: 'other' }], 'gpt-5-6', undefined, entry({ conversationId: 'sol-saved', model: 'gpt-5-6', persisted: true }));
+  rememberContinuation([...base(), { role: 'user', content: 'third' }], 'gpt-5-6', undefined, entry({ conversationId: 'sol-temp', model: 'gpt-5-6', persisted: false }));
+  assert.deepEqual(sweepExpired(Date.now() + 60 * 60_000).map((e) => e.conversationId), ['wm-saved']);
+});

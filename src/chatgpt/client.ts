@@ -293,10 +293,12 @@ export interface ResolvedModel {
 
 /**
  * Plain (non-work-mode) models that run in a saved conversation by default
- * instead of a temporary one. Empty until a model is measured to cost nothing
- * on the plan's usage windows in a saved chat.
+ * instead of a temporary one. GPT-5.6 Sol (auto, instant, thinking): measured
+ * 2026-10-22 — four saved turns (chat lane, Harmony harness, continued in
+ * place) left the plan's 5-hour and weekly usage unchanged (6% / 32% before
+ * and after). Saved plain chats stay visible in the account's history.
  */
-export const SAVED_BY_DEFAULT: RegExp | null = null;
+export const SAVED_BY_DEFAULT: RegExp | null = /^gpt-5-6(?:-instant|-thinking)?$/;
 export function savesByDefault(m: Pick<ResolvedModel, 'slug' | 'workMode'>): boolean {
   return !m.workMode && !!SAVED_BY_DEFAULT?.test(m.slug);
 }
