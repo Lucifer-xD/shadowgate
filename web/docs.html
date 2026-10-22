@@ -6,20 +6,20 @@
   <title>ShadowGate — API reference</title>
   <meta name="description" content="ShadowGate API reference: OpenAI-compatible endpoints, streaming, keys, rate limits and model mapping.">
   <meta name="theme-color" content="#09080a">
-  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.17.0">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.17.1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/assets/base.css?v=1.17.0">
-  <link rel="stylesheet" href="/assets/landing.css?v=1.17.0">
-  <link rel="stylesheet" href="/assets/docs.css?v=1.17.0">
+  <link rel="stylesheet" href="/assets/base.css?v=1.17.1">
+  <link rel="stylesheet" href="/assets/landing.css?v=1.17.1">
+  <link rel="stylesheet" href="/assets/docs.css?v=1.17.1">
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
   <div class="bg-rays" aria-hidden="true"></div>
 
   <header class="nav" id="nav">
-    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.17.0" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
+    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.17.1" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
     <nav class="nav-links" aria-label="Site">
       <a href="/">Home</a><a href="/docs" class="current">Docs</a><a href="/healthz">Health</a>
     </nav>
@@ -36,6 +36,7 @@
         <a href="#chat">Chat completions</a>
         <a href="#streaming">Streaming</a>
         <a href="#models">Models</a>
+        <a href="#clients">Client configs</a>
         <a href="#tools">Function calling</a>
         <a href="#effort">Reasoning effort</a>
         <a href="#usage">Usage</a>
@@ -220,28 +221,858 @@ curl "https://ai.shadowvpn.live/v1/usage?format=text" -H "Authorization: Bearer 
       <div class="codeblock">
         <div class="codeblock-bar mono"><span>ZadLoop / DeepSeek Harness — cordis.patch.yml</span><button class="copy" data-copy>copy</button></div>
         <pre class="mono">providers:
-  shadowgate:
-    displayName: ShadowGate
+  shadowgate-gpt6:
+    displayName: GPT-6 · Free
     api: openai-completions
     baseURL: https://ai.shadowvpn.live/v1
     apiKeyEnv: SHADOWGATE_API_KEY
     models:
-      - id: gpt-6-astra
+      - id: gpt-6-astra-wm
         name: GPT-6 Astra
-        contextWindow: 120000
+        contextWindow: 262144
         maxTokens: 16384
-        input: [text]
+        input: [text, image]
         reasoningEfforts:
           low: standard
           high: extended</pre>
       </div>
-      <p>The menu then offers Default (the backend's own effort), Low and High. Pro models accept <code>standard</code> only, so they take no <code>reasoningEfforts</code> (or <code>false</code>).</p>
+      <p>The menu then offers Default (the backend's own effort), Low and High. The complete ZadLoop and OpenCode configs are under <a href="#clients">client configs</a>. Pro models accept <code>standard</code> only, so they take no <code>reasoningEfforts</code> (or <code>false</code>).</p>
       <div class="codeblock">
         <div class="codeblock-bar mono"><span>extended thinking</span><button class="copy" data-copy>copy</button></div>
         <pre class="mono">{ <span class="s">"model"</span>: <span class="s">"gpt-5-thinking"</span>, <span class="s">"reasoning_effort"</span>: <span class="s">"high"</span>,
   <span class="s">"messages"</span>: [{ <span class="s">"role"</span>: <span class="s">"user"</span>, <span class="s">"content"</span>: <span class="s">"Prove it carefully."</span> }] }</pre>
       </div>
       <p>Asking for <code>high</code> on a non-reasoning alias such as <code>gpt-5</code> upgrades the request to the thinking lane. Models without configurable effort ignore the field.</p>
+
+      <h2 id="clients">Client configs</h2>
+      <p>Ready-made configs for <b>OpenCode</b> and <b>ZadLoop / DeepSeek Harness</b>, generated from the live <code>/v1/models</code> listing and tested end to end. Both sort the models into three sections, so the picker tells you at a glance what each one costs. All three sections use the same key and the same base URL.</p>
+      <table class="params">
+        <thead><tr><th>Section</th><th>Models</th><th>Chat</th><th>Counts toward your plan's 5h / weekly usage</th></tr></thead>
+        <tbody>
+          <tr><td>GPT-6 · Free</td><td>GPT-6 (chat lane), GPT-6 Astra, GPT-6.1 Sol, GPT-6 Sol, GPT-6 Luna</td><td>temporary</td><td>no</td></tr>
+          <tr><td>GPT-5.6 · Free</td><td>GPT-5.6 Sol Auto / Instant / Thinking</td><td>normal saved chat, stays in your ChatGPT history</td><td>no</td></tr>
+          <tr><td></td><td>GPT-5.6 Terra, Sol and Luna (work mode), Luna Mini, Luna Thinking Mini, GPT-5.3 Mini</td><td>temporary</td><td>no</td></tr>
+          <tr><td>Codex · Uses your 5h/Week</td><td>the <code>-codex</code> twin of every work-mode model</td><td>saved (ChatGPT's Codex harness), hidden after 25 min idle</td><td><b>yes</b>, roughly 1–2% of the 5-hour window per small message</td></tr>
+        </tbody>
+      </table>
+      <p>The Codex twins run the same models as the free rows. Their one advantage is that the chat continues in place, so only new messages are sent each turn, which helps on very long agent sessions. The Pro rows (<code>gpt-5-6-pro</code>, <code>gpt-6-pro</code>, <code>o3-pro</code>) are left out because they need a plan that includes them; add them if yours does. Any request can pick the chat type itself with the header <code>x-shadowgate-chat: saved</code> or <code>temporary</code>, and the response's <code>x-shadowgate-chat</code> header says which one was used.</p>
+      <p><b>OpenCode.</b> Save as <code>~/.config/opencode/opencode.json</code>. If you already have one, merge the <code>provider</code> entries into it. Then set the key in your environment as <code>SHADOWGATE_API_KEY</code>. Effort variants: pick <code>#low</code> or <code>#high</code> on a reasoning model (for example <code>shadowgate-gpt6/gpt-6-astra-wm#high</code>); with no variant the model uses its default. <a href="/configs/opencode.json" download>Download opencode.json</a>.</p>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>opencode.json</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono">{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "shadowgate-gpt6/gpt-6-astra-wm",
+  "small_model": "shadowgate-gpt56/gpt-5-6-instant",
+  "provider": {
+    "shadowgate-gpt6": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "ShadowGate · GPT-6 (free)",
+      "options": {
+        "baseURL": "https://ai.shadowvpn.live/v1",
+        "apiKey": "{env:SHADOWGATE_API_KEY}"
+      },
+      "models": {
+        "gpt-6": {
+          "name": "GPT-6",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-6-astra-wm": {
+          "name": "GPT-6 Astra",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-6.1-sol-wm": {
+          "name": "GPT-6.1 Sol",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-6-sol-wm": {
+          "name": "GPT-6 Sol",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-6-luna-wm": {
+          "name": "GPT-6 Luna",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        }
+      }
+    },
+    "shadowgate-gpt56": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "ShadowGate · GPT-5.6 (free)",
+      "options": {
+        "baseURL": "https://ai.shadowvpn.live/v1",
+        "apiKey": "{env:SHADOWGATE_API_KEY}"
+      },
+      "models": {
+        "gpt-5-6": {
+          "name": "GPT-5.6 Sol Auto",
+          "attachment": true,
+          "reasoning": false,
+          "tool_call": true,
+          "limit": {
+            "context": 137000,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        "gpt-5-6-instant": {
+          "name": "GPT-5.6 Sol Instant",
+          "attachment": true,
+          "reasoning": false,
+          "tool_call": true,
+          "limit": {
+            "context": 137000,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        "gpt-5-6-thinking": {
+          "name": "GPT-5.6 Sol Thinking",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-5.6-terra-wm": {
+          "name": "GPT-5.6 Terra",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-5.6-sol-wm": {
+          "name": "GPT-5.6 Sol (work mode)",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-5.6-luna-wm": {
+          "name": "GPT-5.6 Luna (work mode)",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-5-6-mini": {
+          "name": "GPT-5.6 Luna Mini",
+          "attachment": true,
+          "reasoning": false,
+          "tool_call": true,
+          "limit": {
+            "context": 137000,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        "gpt-5-6-t-mini": {
+          "name": "GPT-5.6 Luna Thinking Mini",
+          "attachment": true,
+          "reasoning": false,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        "gpt-5-3-mini": {
+          "name": "GPT-5.3 Mini",
+          "attachment": true,
+          "reasoning": false,
+          "tool_call": true,
+          "limit": {
+            "context": 128000,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        }
+      }
+    },
+    "shadowgate-codex": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "ShadowGate · Codex (uses your 5h/Week)",
+      "options": {
+        "baseURL": "https://ai.shadowvpn.live/v1",
+        "apiKey": "{env:SHADOWGATE_API_KEY}"
+      },
+      "models": {
+        "gpt-6-astra-codex": {
+          "name": "GPT-6 Astra · Codex",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-6.1-sol-codex": {
+          "name": "GPT-6.1 Sol · Codex",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-6-sol-codex": {
+          "name": "GPT-6 Sol · Codex",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-6-luna-codex": {
+          "name": "GPT-6 Luna · Codex",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-5.6-terra-codex": {
+          "name": "GPT-5.6 Terra · Codex",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-5.6-sol-codex": {
+          "name": "GPT-5.6 Sol · Codex",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        },
+        "gpt-5.6-luna-codex": {
+          "name": "GPT-5.6 Luna · Codex",
+          "attachment": true,
+          "reasoning": true,
+          "tool_call": true,
+          "limit": {
+            "context": 262144,
+            "output": 16384
+          },
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          },
+          "variants": {
+            "low": {
+              "reasoningEffort": "low"
+            },
+            "high": {
+              "reasoningEffort": "high"
+            }
+          }
+        }
+      }
+    }
+  }
+}</pre>
+      </div>
+      <p><b>ZadLoop / DeepSeek Harness.</b> Paste into your profile's <code>cordis.patch.yml</code> (in ZadLoop: <code>%APPDATA%\ZadLoop\harness\profiles\web\cordis.patch.yml</code>). If you already have an <code>llm-pi-ai</code> entry, add these three providers to its <code>providers</code> instead of adding a second entry. The file reloads live. Then store the key under Settings → Providers → any ShadowGate section → <i>Replace key</i>, or set <code>SHADOWGATE_API_KEY</code> in your environment and restart ZadLoop. <code>reasoningEfforts</code> gives the Default / Low / High menu; <code>false</code> marks a model without efforts. <a href="/configs/zadloop-cordis.patch.yml" download>Download zadloop-cordis.patch.yml</a>.</p>
+      <div class="codeblock">
+        <div class="codeblock-bar mono"><span>cordis.patch.yml</span><button class="copy" data-copy>copy</button></div>
+        <pre class="mono"># ShadowGate for ZadLoop / DeepSeek Harness — three picker sections, one key.
+# Paste into your profile cordis.patch.yml (or merge the providers into your existing llm-pi-ai entry).
+# Key: Settings → Providers → (any ShadowGate section) → Replace key, or set the SHADOWGATE_API_KEY environment variable.
+- id: llm-pi-ai
+  name: "@deepseek-ai/dsh-llm-pi-ai"
+  config:
+    providers:
+      shadowgate-gpt6:
+        displayName: GPT-6 · Free
+        api: openai-completions
+        baseURL: https://ai.shadowvpn.live/v1
+        defaultContextWindow: 262144
+        defaultMaxTokens: 16384
+        defaultInput:
+          - text
+          - image
+        models:
+          - id: gpt-6
+            name: GPT-6
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6-astra-wm
+            name: GPT-6 Astra
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6.1-sol-wm
+            name: GPT-6.1 Sol
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6-sol-wm
+            name: GPT-6 Sol
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6-luna-wm
+            name: GPT-6 Luna
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+        apiKeyEnv: SHADOWGATE_API_KEY
+      shadowgate-gpt56:
+        displayName: GPT-5.6 · Free
+        api: openai-completions
+        baseURL: https://ai.shadowvpn.live/v1
+        defaultContextWindow: 262144
+        defaultMaxTokens: 16384
+        defaultInput:
+          - text
+          - image
+        models:
+          - id: gpt-5-6
+            name: GPT-5.6 Sol Auto
+            contextWindow: 137000
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts: false
+          - id: gpt-5-6-instant
+            name: GPT-5.6 Sol Instant
+            contextWindow: 137000
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts: false
+          - id: gpt-5-6-thinking
+            name: GPT-5.6 Sol Thinking
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-terra-wm
+            name: GPT-5.6 Terra
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-sol-wm
+            name: GPT-5.6 Sol (work mode)
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-luna-wm
+            name: GPT-5.6 Luna (work mode)
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5-6-mini
+            name: GPT-5.6 Luna Mini
+            contextWindow: 137000
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts: false
+          - id: gpt-5-6-t-mini
+            name: GPT-5.6 Luna Thinking Mini
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts: false
+          - id: gpt-5-3-mini
+            name: GPT-5.3 Mini
+            contextWindow: 128000
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts: false
+        apiKeyEnv: SHADOWGATE_API_KEY
+      shadowgate-codex:
+        displayName: Codex · Uses your 5h/Week
+        api: openai-completions
+        baseURL: https://ai.shadowvpn.live/v1
+        defaultContextWindow: 262144
+        defaultMaxTokens: 16384
+        defaultInput:
+          - text
+          - image
+        models:
+          - id: gpt-6-astra-codex
+            name: GPT-6 Astra · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6.1-sol-codex
+            name: GPT-6.1 Sol · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6-sol-codex
+            name: GPT-6 Sol · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6-luna-codex
+            name: GPT-6 Luna · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-terra-codex
+            name: GPT-5.6 Terra · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-sol-codex
+            name: GPT-5.6 Sol · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-luna-codex
+            name: GPT-5.6 Luna · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+        apiKeyEnv: SHADOWGATE_API_KEY
+- id: agent-default-model
+  name: "@deepseek-ai/dsh-agent-default-model"
+  config:
+    provider: shadowgate-gpt6
+    model: gpt-6-astra-wm</pre>
+      </div>
 
       <h2 id="errors">Errors</h2>
       <p>Errors are OpenAI-shaped: <code>{"error": {"message", "type", "param": null, "code": null}}</code>.</p>
@@ -287,12 +1118,12 @@ curl "https://ai.shadowvpn.live/v1/usage?format=text" -H "Authorization: Bearer 
 
   <footer class="footer">
     <div class="foot-row">
-      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.17.0" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.17.1" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
       <nav class="foot-links mono"><a href="/">home</a><a href="/admin">console</a><a href="/healthz">health</a><a href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">github</a></nav>
       <div class="foot-note mono">built by <b>Lucifer</b></div>
     </div>
   </footer>
 
-  <script src="/assets/docs.js?v=1.17.0" defer></script>
+  <script src="/assets/docs.js?v=1.17.1" defer></script>
 </body>
 </html>

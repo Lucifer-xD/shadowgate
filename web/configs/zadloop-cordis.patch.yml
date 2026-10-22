@@ -1,0 +1,245 @@
+# ShadowGate for ZadLoop / DeepSeek Harness — three picker sections, one key.
+# Paste into your profile cordis.patch.yml (or merge the providers into your existing llm-pi-ai entry).
+# Key: Settings → Providers → (any ShadowGate section) → Replace key, or set the SHADOWGATE_API_KEY environment variable.
+- id: llm-pi-ai
+  name: "@deepseek-ai/dsh-llm-pi-ai"
+  config:
+    providers:
+      shadowgate-gpt6:
+        displayName: GPT-6 · Free
+        api: openai-completions
+        baseURL: https://ai.shadowvpn.live/v1
+        defaultContextWindow: 262144
+        defaultMaxTokens: 16384
+        defaultInput:
+          - text
+          - image
+        models:
+          - id: gpt-6
+            name: GPT-6
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6-astra-wm
+            name: GPT-6 Astra
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6.1-sol-wm
+            name: GPT-6.1 Sol
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6-sol-wm
+            name: GPT-6 Sol
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6-luna-wm
+            name: GPT-6 Luna
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+        apiKeyEnv: SHADOWGATE_API_KEY
+      shadowgate-gpt56:
+        displayName: GPT-5.6 · Free
+        api: openai-completions
+        baseURL: https://ai.shadowvpn.live/v1
+        defaultContextWindow: 262144
+        defaultMaxTokens: 16384
+        defaultInput:
+          - text
+          - image
+        models:
+          - id: gpt-5-6
+            name: GPT-5.6 Sol Auto
+            contextWindow: 137000
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts: false
+          - id: gpt-5-6-instant
+            name: GPT-5.6 Sol Instant
+            contextWindow: 137000
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts: false
+          - id: gpt-5-6-thinking
+            name: GPT-5.6 Sol Thinking
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-terra-wm
+            name: GPT-5.6 Terra
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-sol-wm
+            name: GPT-5.6 Sol (work mode)
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-luna-wm
+            name: GPT-5.6 Luna (work mode)
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5-6-mini
+            name: GPT-5.6 Luna Mini
+            contextWindow: 137000
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts: false
+          - id: gpt-5-6-t-mini
+            name: GPT-5.6 Luna Thinking Mini
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts: false
+          - id: gpt-5-3-mini
+            name: GPT-5.3 Mini
+            contextWindow: 128000
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts: false
+        apiKeyEnv: SHADOWGATE_API_KEY
+      shadowgate-codex:
+        displayName: Codex · Uses your 5h/Week
+        api: openai-completions
+        baseURL: https://ai.shadowvpn.live/v1
+        defaultContextWindow: 262144
+        defaultMaxTokens: 16384
+        defaultInput:
+          - text
+          - image
+        models:
+          - id: gpt-6-astra-codex
+            name: GPT-6 Astra · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6.1-sol-codex
+            name: GPT-6.1 Sol · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6-sol-codex
+            name: GPT-6 Sol · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-6-luna-codex
+            name: GPT-6 Luna · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-terra-codex
+            name: GPT-5.6 Terra · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-sol-codex
+            name: GPT-5.6 Sol · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+          - id: gpt-5.6-luna-codex
+            name: GPT-5.6 Luna · Codex
+            contextWindow: 262144
+            maxTokens: 16384
+            input:
+              - text
+              - image
+            reasoningEfforts:
+              low: standard
+              high: extended
+        apiKeyEnv: SHADOWGATE_API_KEY
+- id: agent-default-model
+  name: "@deepseek-ai/dsh-agent-default-model"
+  config:
+    provider: shadowgate-gpt6
+    model: gpt-6-astra-wm
