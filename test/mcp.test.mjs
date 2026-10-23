@@ -32,8 +32,9 @@ async function harness() {
   v1.post('/v1/chat/completions', (q, r) => {
     const hasTools = Array.isArray(q.body.tools) && q.body.tools.length;
     const last = q.body.messages.at(-1);
-    if (hasTools && last.role !== 'tool') r.json({ model: 'gpt-5-6', choices: [{ message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'system_info', arguments: '{}' } }] } }] });
-    else if (hasTools) r.json({ model: 'gpt-5-6', choices: [{ message: { role: 'assistant', content: 'Done: TEST-BOX.' } }] });
+    if (hasTools && last.role === 'tool') r.json({ model: 'gpt-5-6', choices: [{ message: { role: 'assistant', content: 'Done: TEST-BOX.' } }] });
+    else if (hasTools && q.body.tool_choice === 'required') r.json({ model: 'gpt-5-6', choices: [{ message: { role: 'assistant', content: null, tool_calls: [{ id: 'c1', type: 'function', function: { name: 'system_info', arguments: '{}' } }] } }] });
+    else if (hasTools) r.json({ model: 'gpt-5-6', choices: [{ message: { role: 'assistant', content: 'FABRICATED-NAME (guessed, no tool used)' } }] }); // only reached if the loop forgets to force a tool
     else r.json({ model: q.body.model, choices: [{ message: { role: 'assistant', content: `Echo: ${last.content}` } }], usage: { total_tokens: 12 } });
   });
   const v1Srv = await listen(v1);

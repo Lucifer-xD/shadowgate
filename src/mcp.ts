@@ -160,19 +160,24 @@ export function mountMcp(app: Express, store: Store, cfg: Config): void {
           if (!toolSpecs.length) return textResult(`The "${conn.name}" connector exposes no tools.`);
 
           const messages: any[] = [
-            { role: 'system', content: `You carry out the user's task by using the tools of "${conn.name}" on their machine. Take one or more tool actions, check the results, and continue until the task is done. Then reply with a short plain-text report of what you did and the outcome, with no tool call. Be careful and do only what the task asks.` },
+            { role: 'system', content: `You carry out the user's task by using the tools of "${conn.name}", which act on the user's real machine. You have NO prior knowledge of that machine's current state — its files, processes, windows, settings or anything else — so you must find every answer by calling a tool and reading the result. Never answer from memory or guess a value; always use a tool first. Take one or more actions, check the results, continue until the task is done, then reply with a short plain-text report of what you did and the outcome, with no tool call. Be careful and do only what the task asks.` },
             { role: 'user', content: task },
           ];
           const transcript: string[] = [];
           let final = '';
+          let tookAction = false;
 
           for (let step = 0; step < limit; step++) {
-            const r = await v1('/v1/chat/completions', key, { method: 'POST', body: JSON.stringify({ model: useModel, messages, tools: toolSpecs }) });
+            // force a real tool call until the agent has actually done something, so it cannot fabricate an answer
+            const body: any = { model: useModel, messages, tools: toolSpecs };
+            if (!tookAction) body.tool_choice = 'required';
+            const r = await v1('/v1/chat/completions', key, { method: 'POST', body: JSON.stringify(body) });
             const j: any = await r.json().catch(() => null);
             if (!r.ok || !j) { transcript.push(`! model call failed (HTTP ${r.status}${j?.error?.message ? `: ${j.error.message}` : ''})`); break; }
             const m = j.choices?.[0]?.message;
             const calls = m?.tool_calls || [];
             if (!calls.length) { final = m?.content?.trim() || ''; break; }
+            tookAction = true;
             messages.push({ role: 'assistant', content: m.content ?? null, tool_calls: calls });
             for (const c of calls) {
               let args: any = {};
