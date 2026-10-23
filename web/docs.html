@@ -6,20 +6,20 @@
   <title>ShadowGate — API reference</title>
   <meta name="description" content="ShadowGate API reference: OpenAI-compatible endpoints, streaming, keys, rate limits and model mapping.">
   <meta name="theme-color" content="#09080a">
-  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.19.1">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.19.2">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/assets/base.css?v=1.19.1">
-  <link rel="stylesheet" href="/assets/landing.css?v=1.19.1">
-  <link rel="stylesheet" href="/assets/docs.css?v=1.19.1">
+  <link rel="stylesheet" href="/assets/base.css?v=1.19.2">
+  <link rel="stylesheet" href="/assets/landing.css?v=1.19.2">
+  <link rel="stylesheet" href="/assets/docs.css?v=1.19.2">
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
   <div class="bg-rays" aria-hidden="true"></div>
 
   <header class="nav" id="nav">
-    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.19.1" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
+    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.19.2" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
     <nav class="nav-links" aria-label="Site">
       <a href="/">Home</a><a href="/docs" class="current">Docs</a><a href="/healthz">Health</a>
     </nav>
@@ -207,6 +207,7 @@ curl "https://ai.shadowvpn.live/v1/usage?format=text" -H "Authorization: Bearer 
           <tr><td><code>run_task</code></td><td>Give a model a task it carries out by operating a connected tool server (for example PC Commander): it calls that server's tools step by step and returns the steps it took plus the outcome — actions, not just chat. Shown only when a downstream connector is configured.</td></tr>
         </tbody>
       </table>
+      <p><b>Metered models are blocked.</b> The <code>-codex</code> rows (a work-mode model in a saved chat, which counts toward your plan's 5-hour and weekly usage) are hidden from <code>list_models</code>, and <code>ask_model</code> and <code>run_task</code> refuse them, and any model name containing "codex", before anything is sent. So a client like ChatGPT can never spend your usage on its own. Set <code>SHADOWGATE_MCP_ALLOW_METERED=1</code> on the server to lift this.</p>
       <p>Every tool runs through this gateway's own <code>/v1</code> API with your key, so routing, continuation, per-key rate limits, the request log and usage all behave as for any other client. <code>run_task</code>'s downstream connectors are set server-side in the <code>SHADOWGATE_AGENT_CONNECTORS</code> environment variable — a JSON array of <code>{"name","url"}</code>, where each <code>url</code> is another MCP server (such as <code>https://pc.shadowvpn.live/mcp?key=…</code>). With none set, <code>run_task</code> is hidden and the other three tools still work.</p>
 
       <h2 id="images">Images</h2>
@@ -1245,12 +1246,12 @@ curl "https://ai.shadowvpn.live/v1/usage?format=text" -H "Authorization: Bearer 
 
   <footer class="footer">
     <div class="foot-row">
-      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.19.1" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.19.2" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
       <nav class="foot-links mono"><a href="/">home</a><a href="/admin">console</a><a href="/healthz">health</a><a href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">github</a></nav>
       <div class="foot-note mono">built by <b>Lucifer</b></div>
     </div>
   </footer>
 
-  <script src="/assets/docs.js?v=1.19.1" defer></script>
+  <script src="/assets/docs.js?v=1.19.2" defer></script>
 </body>
 </html>

@@ -774,7 +774,7 @@
     };
     const renderMsg = (m, streaming = false) => `
       <div class="msg ${m.role} ${streaming ? 'streaming' : ''}" data-mid="${m.id}">
-        <div class="mark">${m.role === 'user' ? esc((state.username[0] || 'u').toUpperCase()) : '<img src="/assets/logo.svg?v=1.19.1" alt="">'}</div>
+        <div class="mark">${m.role === 'user' ? esc((state.username[0] || 'u').toUpperCase()) : '<img src="/assets/logo.svg?v=1.19.2" alt="">'}</div>
         <div class="body">
           ${m.role === 'assistant' && m.reasoning ? `<details class="think"><summary>Thought process</summary><div>${esc(m.reasoning)}</div></details>` : ''}
           <div class="bubble ${m.error && !m.content ? 'err' : ''} ${m.role === 'assistant' ? 'md' : ''}">${m.role === 'assistant' ? (m.content ? md(m.content) : esc(m.error || '')) : esc(m.content)}</div>

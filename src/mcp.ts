@@ -72,6 +72,24 @@ export function mountMcp(app: Express, store: Store, cfg: Config): void {
     });
   }
 
+  // Metered models (the -codex rows: a work-mode model in a saved chat, which counts toward the
+  // plan's 5-hour and weekly usage) are never reachable through this connector, so a client
+  // such as ChatGPT can't spend the user's usage on its own. Set SHADOWGATE_MCP_ALLOW_METERED=1
+  // to lift the block.
+  const allowMetered = process.env.SHADOWGATE_MCP_ALLOW_METERED === '1';
+  async function modelRows(key: string): Promise<{ rows: any[]; metered: Set<string>; defaultModel: string } | null> {
+    const r = await v1('/v1/models', key);
+    const j: any = await r.json().catch(() => null);
+    if (!r.ok || !j) return null;
+    const rows: any[] = j.data || [];
+    const metered = new Set(rows.filter((m) => m.metered).map((m) => String(m.id).toLowerCase()));
+    return { rows, metered, defaultModel: j.default_model || 'auto' };
+  }
+  const isMetered = (name: string, metered: Set<string>) => !allowMetered && (/codex/i.test(name) || metered.has(name.toLowerCase()));
+  const blockedText = (name: string, rows: any[]) =>
+    `"${name}" is a metered model: it counts toward your ChatGPT plan's 5-hour and weekly usage, so this connector does not use it. ` +
+    `Pick a free model instead, for example: ${rows.filter((m) => !m.metered).slice(0, 8).map((m) => m.id).join(', ')}.`;
+
   function buildServer(key: string): McpServer {
     const server = new McpServer({ name: 'shadowgate', version: cfg.version }, {
       instructions:
@@ -84,22 +102,26 @@ export function mountMcp(app: Express, store: Store, cfg: Config): void {
       description: 'List the ShadowGate models this key may use, with their titles and which thinking efforts they accept.',
       inputSchema: {},
     }, async () => {
-      const r = await v1('/v1/models', key);
-      const j: any = await r.json().catch(() => null);
-      if (!r.ok || !j) return textResult(`Could not list models (HTTP ${r.status}).`);
-      const rows = (j.data || []).map((m: any) => `${m.id}${m.title && m.title !== m.id ? ` — ${m.title}` : ''}${m.lane ? ` [${m.lane}]` : ''}${Array.isArray(m.reasoning_efforts) && m.reasoning_efforts.length ? ` · efforts: ${m.reasoning_efforts.join('/')}` : ''}`);
-      return textResult(`${rows.length} models (default ${j.default_model || 'auto'}):\n${rows.join('\n')}`);
+      const info = await modelRows(key);
+      if (!info) return textResult('Could not list models.');
+      const visible = info.rows.filter((m) => !isMetered(String(m.id), info.metered));
+      const lines = visible.map((m: any) => `${m.id}${m.title && m.title !== m.id ? ` — ${m.title}` : ''}${m.lane ? ` [${m.lane}]` : ''}${Array.isArray(m.reasoning_efforts) && m.reasoning_efforts.length ? ` · efforts: ${m.reasoning_efforts.join('/')}` : ''}`);
+      const hidden = info.rows.length - visible.length;
+      return textResult(`${lines.length} models (default ${info.defaultModel}):\n${lines.join('\n')}${hidden ? `\n\n${hidden} metered models (the -codex rows, which count toward your plan's usage) are hidden from this connector.` : ''}`);
     });
 
     server.registerTool('ask_model', {
       description: 'Ask one ShadowGate model a single question and get its answer. The result shows the model it went to, what was sent, and the full reply (including the model\'s thinking when it returns any).',
       inputSchema: {
-        model: z.string().describe('Model id from list_models, e.g. "gpt-6-astra", "gpt-6", "gpt-5-6". A GPT-6 name without -wm uses the free chat lane; a -wm name is the real work-mode model and spends work credits.'),
+        model: z.string().describe('Model id from list_models, e.g. "gpt-6", "gpt-5-6", "gpt-6-astra-wm". Only free models are allowed here; metered -codex models are refused.'),
         prompt: z.string().describe('The question or instruction for the model.'),
         system: z.string().optional().describe('Optional system instruction to steer the model.'),
         effort: z.string().optional().describe('Optional thinking effort: minimal, low, medium or high.'),
       },
     }, async ({ model, prompt, system, effort }) => {
+      const info = await modelRows(key);
+      if (!info) return textResult('Could not check the model list, so nothing was sent.');
+      if (isMetered(model, info.metered)) return textResult(blockedText(model, info.rows));
       const messages = [
         ...(system ? [{ role: 'system', content: system }] : []),
         { role: 'user', content: prompt },
@@ -143,6 +165,9 @@ export function mountMcp(app: Express, store: Store, cfg: Config): void {
         const conn = connector ? connectors.find((c) => c.name.toLowerCase() === connector.toLowerCase()) : connectors[0];
         if (!conn) return textResult(`No connector named "${connector}". Configured: ${names}.`);
         const useModel = model || DEFAULT_AGENT_MODEL;
+        const info = await modelRows(key);
+        if (!info) return textResult('Could not check the model list, so the task was not started.');
+        if (isMetered(useModel, info.metered)) return textResult(blockedText(useModel, info.rows));
         const limit = max_steps || MAX_STEPS;
 
         const client = new Client({ name: 'shadowgate-agent', version: cfg.version });

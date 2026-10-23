@@ -99,7 +99,7 @@ ShadowGate is an MCP server (Streamable HTTP). Point an MCP client at `/mcp?key=
 - `usage` — the account 5-hour/weekly limits and this key's gateway usage.
 - `run_task` {task, connector?, model?, max_steps?} — a model carries out a task by operating a downstream connector's tools (e.g. PC Commander), returning a step-by-step transcript and the outcome. Only present when connectors are configured.
 
-Every tool calls this gateway's own `/v1` with the key (so routing, continuation, rate limits, logging and usage apply). `run_task` connectors are set in the env var `SHADOWGATE_AGENT_CONNECTORS` = JSON `[{"name","url"}]`, each `url` an MCP server. Requires `@modelcontextprotocol/sdk`.
+Metered `-codex` models (saved work-mode chats, counted toward the plan's usage) are hidden and refused by every tool, as is any name containing "codex"; set `SHADOWGATE_MCP_ALLOW_METERED=1` to allow them. Every tool calls this gateway's own `/v1` with the key (so routing, continuation, rate limits, logging and usage apply). `run_task` connectors are set in the env var `SHADOWGATE_AGENT_CONNECTORS` = JSON `[{"name","url"}]`, each `url` an MCP server. Requires `@modelcontextprotocol/sdk`.
 
 ## Errors
 

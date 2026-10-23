@@ -27,7 +27,11 @@ async function harness() {
 
   // fake /v1
   const v1 = express(); v1.use(express.json());
-  v1.get('/v1/models', (_q, r) => r.json({ object: 'list', default_model: 'gpt-6', data: [{ id: 'gpt-6', title: 'GPT-6', lane: 'chat', reasoning_efforts: ['low'] }] }));
+  v1.get('/v1/models', (_q, r) => r.json({ object: 'list', default_model: 'gpt-6', data: [
+    { id: 'gpt-6', title: 'GPT-6', lane: 'chat', reasoning_efforts: ['low'] },
+    { id: 'gpt-6-astra-wm', title: 'GPT-6 Astra (work mode)', lane: 'reasoning', work_mode: true, metered: false },
+    { id: 'gpt-6-astra-codex', title: 'GPT-6 Astra · Codex (metered)', lane: 'reasoning', work_mode: true, metered: true },
+  ] }));
   v1.get('/v1/usage', (_q, r) => r.type('text/plain').send('weekly 31% used.'));
   v1.post('/v1/chat/completions', (q, r) => {
     const hasTools = Array.isArray(q.body.tools) && q.body.tools.length;
@@ -71,6 +75,24 @@ test('mcp: exposes the four tools and ask_model shows what was sent and the repl
     assert.match(a, /Prompt: hello there/);
     assert.match(a, /Echo: hello there/);
     assert.match(await text(c, 'usage'), /weekly 31% used/);
+    await c.close();
+  } finally { h.close(); }
+});
+
+test('mcp: metered -codex models are hidden and refused, nothing is sent upstream', async () => {
+  const h = await harness();
+  try {
+    const c = await client(h.port, h.KEY);
+    const list = await text(c, 'list_models');
+    assert.match(list, /gpt-6-astra-wm/);
+    assert.doesNotMatch(list, /gpt-6-astra-codex/);
+    assert.match(list, /1 metered models .* hidden/);
+    const refused = await text(c, 'ask_model', { model: 'gpt-6-astra-codex', prompt: 'hi' });
+    assert.match(refused, /is a metered model/);
+    assert.doesNotMatch(refused, /Echo:/);
+    // any name with "codex" is refused, even one the list doesn't know
+    assert.match(await text(c, 'ask_model', { model: 'astra-codex', prompt: 'hi' }), /is a metered model/);
+    assert.match(await text(c, 'run_task', { task: 'x', model: 'gpt-6-sol-codex' }), /is a metered model/);
     await c.close();
   } finally { h.close(); }
 });
