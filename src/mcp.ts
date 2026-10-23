@@ -99,6 +99,8 @@ export function mountMcp(app: Express, store: Store, cfg: Config): void {
     });
 
     server.registerTool('list_models', {
+      title: 'List models',
+      annotations: { title: 'List models', readOnlyHint: true, openWorldHint: false },
       description: 'List the ShadowGate models this key may use, with their titles and which thinking efforts they accept.',
       inputSchema: {},
     }, async () => {
@@ -111,6 +113,8 @@ export function mountMcp(app: Express, store: Store, cfg: Config): void {
     });
 
     server.registerTool('ask_model', {
+      title: 'Ask a model',
+      annotations: { title: 'Ask a model', readOnlyHint: true, openWorldHint: true },
       description: 'Ask one ShadowGate model a single question and get its answer. The result shows the model it went to, what was sent, and the full reply (including the model\'s thinking when it returns any).',
       inputSchema: {
         model: z.string().describe('Model id from list_models, e.g. "gpt-6", "gpt-5-6", "gpt-6-astra-wm". Only free models are allowed here; metered -codex models are refused.'),
@@ -140,6 +144,8 @@ export function mountMcp(app: Express, store: Store, cfg: Config): void {
     });
 
     server.registerTool('usage', {
+      title: 'Usage',
+      annotations: { title: 'Usage', readOnlyHint: true, openWorldHint: false },
       description: 'Current ShadowGate usage: the ChatGPT account limits (5-hour and weekly) and this key\'s own gateway usage.',
       inputSchema: {},
     }, async () => {
@@ -151,6 +157,8 @@ export function mountMcp(app: Express, store: Store, cfg: Config): void {
     if (connectors.length) {
       const names = connectors.map((c) => c.name).join(', ');
       server.registerTool('run_task', {
+      title: 'Run a task',
+        annotations: { title: 'Run a task', readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
         description:
           `Have a ShadowGate model carry out a task by operating a connected tool server (${names}). ` +
           'The model plans, calls that server\'s tools step by step, and reports the result. ' +

@@ -79,6 +79,18 @@ test('mcp: exposes the four tools and ask_model shows what was sent and the repl
   } finally { h.close(); }
 });
 
+test('mcp: lookups are labelled read-only and run_task is labelled as an action', async () => {
+  const h = await harness();
+  try {
+    const c = await client(h.port, h.KEY);
+    const ann = Object.fromEntries((await c.listTools()).tools.map((t) => [t.name, t.annotations || {}]));
+    for (const n of ['list_models', 'usage', 'ask_model']) assert.equal(ann[n].readOnlyHint, true, n);
+    assert.equal(ann.run_task.readOnlyHint, false);
+    assert.equal(ann.run_task.destructiveHint, true);
+    await c.close();
+  } finally { h.close(); }
+});
+
 test('mcp: metered -codex models are hidden and refused, nothing is sent upstream', async () => {
   const h = await harness();
   try {
