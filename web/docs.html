@@ -6,20 +6,20 @@
   <title>ShadowGate — API reference</title>
   <meta name="description" content="ShadowGate API reference: OpenAI-compatible endpoints, streaming, keys, rate limits and model mapping.">
   <meta name="theme-color" content="#09080a">
-  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.18.1">
+  <link rel="icon" type="image/svg+xml" href="/assets/logo.svg?v=1.19.0">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
-  <link rel="stylesheet" href="/assets/base.css?v=1.18.1">
-  <link rel="stylesheet" href="/assets/landing.css?v=1.18.1">
-  <link rel="stylesheet" href="/assets/docs.css?v=1.18.1">
+  <link rel="stylesheet" href="/assets/base.css?v=1.19.0">
+  <link rel="stylesheet" href="/assets/landing.css?v=1.19.0">
+  <link rel="stylesheet" href="/assets/docs.css?v=1.19.0">
 </head>
 <body>
   <div class="grain" aria-hidden="true"></div>
   <div class="bg-rays" aria-hidden="true"></div>
 
   <header class="nav" id="nav">
-    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.18.1" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
+    <a class="brand" href="/"><img src="/assets/logo.svg?v=1.19.0" alt="" width="28" height="28"><span class="brand-word">Shadow<em>Gate</em></span></a>
     <nav class="nav-links" aria-label="Site">
       <a href="/">Home</a><a href="/docs" class="current">Docs</a><a href="/healthz">Health</a>
     </nav>
@@ -40,6 +40,7 @@
         <a href="#tools">Function calling</a>
         <a href="#effort">Reasoning effort</a>
         <a href="#usage">Usage</a>
+        <a href="#mcp">MCP connector</a>
         <a href="#images">Images</a>
         <a href="#errors">Errors</a>
         <a href="#limits">Rate limits</a>
@@ -194,6 +195,19 @@ curl "https://ai.shadowvpn.live/v1/usage?format=text" -H "Authorization: Bearer 
  "key":{"name":"opencode","requests_5h":3,"requests_24h":10,"rpd_limit":20000,"remaining_today":19990}}</pre>
       </div>
       <p><b>Ask the model.</b> In any client — ZadLoop, OpenCode, the console chat — ask the model about your usage (“what's my usage?”, “how much of my weekly limit is left?”, “كم استخدامي؟”). The gateway notices the question, attaches the live numbers to that one message and the model answers from them. Nothing changes for other messages, and the attached data never breaks conversation continuation. Snapshots are cached for two minutes, so asking again never puts extra load on the account; the health check also refreshes them every ten minutes. The console shows the same meters on every session card and on the dashboard.</p>
+
+      <h2 id="mcp"><span class="meth post">POST</span> /mcp — connector</h2>
+      <p>ShadowGate is also an <a href="https://modelcontextprotocol.io" rel="noopener">MCP</a> server, so an MCP client such as ChatGPT's custom connectors can reach your models as tools. Point the client at <code>https://ai.shadowvpn.live/mcp?key=sg-…</code> (the key may also go in an <code>Authorization: Bearer</code> header). It speaks Streamable HTTP and needs no sign-in beyond the key.</p>
+      <table class="params">
+        <thead><tr><th>Tool</th><th>What it does</th></tr></thead>
+        <tbody>
+          <tr><td><code>list_models</code></td><td>The models this key may use, with titles and accepted thinking efforts.</td></tr>
+          <tr><td><code>ask_model</code></td><td>Ask one model once (<code>model</code>, <code>prompt</code>, optional <code>system</code> and <code>effort</code>). The result shows the model it went to, exactly what was sent, and the full reply, including the model's thinking when it returns any — so the client can display what happened.</td></tr>
+          <tr><td><code>usage</code></td><td>The account's 5-hour and weekly limits plus this key's gateway usage.</td></tr>
+          <tr><td><code>run_task</code></td><td>Give a model a task it carries out by operating a connected tool server (for example PC Commander): it calls that server's tools step by step and returns the steps it took plus the outcome — actions, not just chat. Shown only when a downstream connector is configured.</td></tr>
+        </tbody>
+      </table>
+      <p>Every tool runs through this gateway's own <code>/v1</code> API with your key, so routing, continuation, per-key rate limits, the request log and usage all behave as for any other client. <code>run_task</code>'s downstream connectors are set server-side in the <code>SHADOWGATE_AGENT_CONNECTORS</code> environment variable — a JSON array of <code>{"name","url"}</code>, where each <code>url</code> is another MCP server (such as <code>https://pc.shadowvpn.live/mcp?key=…</code>). With none set, <code>run_task</code> is hidden and the other three tools still work.</p>
 
       <h2 id="images">Images</h2>
       <p>Send images the OpenAI way — an <code>image_url</code> content part holding a <code>data:</code> URL or an http(s) URL (PNG, JPEG, GIF or WebP, up to 20 MB each). ShadowGate uploads each one to the account's file service exactly as chatgpt.com does and attaches it to the message, so the model sees the picture, not a description of it. Every listed model carries <code>input_modalities: ["text", "image"]</code>; the same image sent twice on one session is uploaded once.</p>
@@ -1231,12 +1245,12 @@ curl "https://ai.shadowvpn.live/v1/usage?format=text" -H "Authorization: Bearer 
 
   <footer class="footer">
     <div class="foot-row">
-      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.18.1" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
+      <a class="brand" href="/"><img src="/assets/logo.svg?v=1.19.0" alt="" width="22" height="22"><span class="brand-word">Shadow<em>Gate</em></span></a>
       <nav class="foot-links mono"><a href="/">home</a><a href="/admin">console</a><a href="/healthz">health</a><a href="https://github.com/Lucifer-xD/shadowgate" rel="noopener">github</a></nav>
       <div class="foot-note mono">built by <b>Lucifer</b></div>
     </div>
   </footer>
 
-  <script src="/assets/docs.js?v=1.18.1" defer></script>
+  <script src="/assets/docs.js?v=1.19.0" defer></script>
 </body>
 </html>

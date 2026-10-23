@@ -13,6 +13,7 @@ import { TokenPool } from './pool.js';
 import { mountGateway } from './gateway.js';
 import { mountAdmin, requireAdmin } from './admin.js';
 import { ChatStore, mountChats } from './chats.js';
+import { mountMcp } from './mcp.js';
 import { warmBuildId } from './chatgpt/pow.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -121,6 +122,7 @@ app.use(express.json({ limit: '24mb' }));
 mountGateway(app, store, cfg, pool, chats);
 mountAdmin(app, store, cfg, pool);
 mountChats(app, requireAdmin(store, cfg), chats, store, pool);
+mountMcp(app, store, cfg);
 
 // static web (landing, docs, admin SPA)
 app.use(

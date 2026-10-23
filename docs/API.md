@@ -90,6 +90,17 @@ Source: `GET https://chatgpt.com/backend-api/wham/usage` per session, cached two
 
 **Usage questions in chat.** When the latest user message asks about usage or limits (English or Arabic; coding phrases such as "usage of this function" are ignored), the gateway appends a `[ShadowGate usage: …]` note with the live summary to that message, so the model answers from real data in any client. The note is stripped from continuation keys, so it never forces a full resend. The request log notes `usage attached`.
 
+## POST /mcp (connector)
+
+ShadowGate is an MCP server (Streamable HTTP). Point an MCP client at `/mcp?key=sg-…` (or send the key as `Authorization: Bearer`). Tools:
+
+- `list_models` — the models this key may use.
+- `ask_model` {model, prompt, system?, effort?} — ask one model once; the text result shows what was sent, the served model, and the full reply plus any thinking.
+- `usage` — the account 5-hour/weekly limits and this key's gateway usage.
+- `run_task` {task, connector?, model?, max_steps?} — a model carries out a task by operating a downstream connector's tools (e.g. PC Commander), returning a step-by-step transcript and the outcome. Only present when connectors are configured.
+
+Every tool calls this gateway's own `/v1` with the key (so routing, continuation, rate limits, logging and usage apply). `run_task` connectors are set in the env var `SHADOWGATE_AGENT_CONNECTORS` = JSON `[{"name","url"}]`, each `url` an MCP server. Requires `@modelcontextprotocol/sdk`.
+
 ## Errors
 
 OpenAI-shaped: `{"error": {"message", "type", "param": null, "code": null}}`.

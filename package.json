@@ -1,6 +1,6 @@
 {
   "name": "shadowgate",
-  "version": "1.18.1",
+  "version": "1.19.0",
   "description": "ShadowGate — a private, self-hosted gate that turns ChatGPT sessions into an OpenAI-compatible API, with a hardened admin console.",
   "type": "module",
   "main": "dist/index.js",
@@ -23,9 +23,11 @@
     "url": "https://github.com/Lucifer-xD/shadowgate.git"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.21.1",
     "bcryptjs": "^3.0.2",
     "express": "^4.21.2",
-    "gpt-tokenizer": "^4.1.0"
+    "gpt-tokenizer": "^4.1.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "@types/express": "^4.17.23",
